@@ -1,6 +1,16 @@
 const express = require('express');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const db = require('../database');
 const requireAuth = require('../middleware/auth');
+
+// Multer: store uploads in OS temp dir, max 25MB
+const upload = multer({
+  dest: os.tmpdir(),
+  limits: { fileSize: 25 * 1024 * 1024 }
+});
 
 const router = express.Router();
 
@@ -113,6 +123,52 @@ function incrementUsage(userId) {
     'INSERT INTO usage (user_id, month, extracts) VALUES (?, ?, 1) ON CONFLICT(user_id, month) DO UPDATE SET extracts = extracts + 1'
   ).run(userId, month);
 }
+
+const MOCK_TRANSCRIPT = `Team standup — February 8, 2026
+Attendees: Sarah, John, Mike, Lisa
+
+Sarah: I wrapped up the landing page redesign yesterday. I'll send it to the client for review by end of day tomorrow.
+
+John: The auth bug on staging is still open. I found the root cause — it's a session timeout issue. I'll have a fix pushed by Friday.
+
+Mike: I spoke with the client about onboarding. They want a walkthrough call next Tuesday. I'll send the calendar invite today.
+
+Lisa: The Q3 metrics dashboard is about 80% done. I need the updated KPI definitions from Sarah before I can finish. Can you send those by Wednesday?
+
+Sarah: Sure, I'll get those over to you by Wednesday morning.
+
+John: One more thing — we need someone to update the deployment docs. They're outdated after the infra migration.
+
+Mike: I can take that. I'll have it done by end of next week.`;
+
+// POST /api/meetings/transcribe — upload audio, get transcript back
+router.post('/transcribe', requireAuth, upload.single('audio'), async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Audio file is required' });
+  }
+
+  const tempPath = req.file.path;
+
+  try {
+    let transcript;
+
+    if (process.env.MOCK_MODE === 'true') {
+      transcript = MOCK_TRANSCRIPT;
+    } else {
+      // Future: plug in OpenAI Whisper, Deepgram, etc.
+      // const transcript = await transcribeWithWhisper(tempPath);
+      return res.status(501).json({ error: 'Transcription provider not configured. Set MOCK_MODE=true or implement a provider.' });
+    }
+
+    res.json({ transcript });
+  } catch (err) {
+    console.error('Transcribe error:', err.message);
+    res.status(500).json({ error: 'Transcription failed' });
+  } finally {
+    // Clean up temp file
+    fs.unlink(tempPath, () => {});
+  }
+});
 
 // POST /api/meetings/extract — send notes to Claude (or mock), return structured data
 router.post('/extract', requireAuth, async (req, res) => {

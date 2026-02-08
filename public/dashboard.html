@@ -20,7 +20,20 @@
     <h2>New Meeting</h2>
     <div class="notes-input">
       <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
-      <button class="btn btn-primary" id="extract-btn">Extract Action Items</button>
+      <div class="input-actions">
+        <button class="btn btn-primary" id="extract-btn">Extract Action Items</button>
+        <span class="divider-text">or</span>
+        <button class="btn btn-secondary" id="record-btn">Record Meeting</button>
+      </div>
+    </div>
+
+    <!-- Recording UI -->
+    <div class="recording-panel" id="recording-panel" style="display:none">
+      <div class="recording-indicator">
+        <span class="rec-dot"></span>
+        <span id="rec-timer">0:00</span>
+      </div>
+      <button class="btn btn-danger" id="stop-btn">Stop Recording</button>
     </div>
 
     <!-- Results Section -->

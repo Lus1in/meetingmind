@@ -170,6 +170,124 @@ async function deleteMeeting(id) {
   if (res.ok) loadMeetings();
 }
 
+// ---- Voice Recording ----
+const recordBtn = document.getElementById('record-btn');
+const stopBtn = document.getElementById('stop-btn');
+const recordingPanel = document.getElementById('recording-panel');
+const recTimer = document.getElementById('rec-timer');
+
+const MAX_RECORDING_SECS = 600; // 10 minutes
+let mediaRecorder = null;
+let audioChunks = [];
+let recordingStart = 0;
+let timerInterval = null;
+
+recordBtn.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioChunks = [];
+
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      stream.getTracks().forEach(t => t.stop());
+      handleRecordingComplete();
+    };
+
+    mediaRecorder.start();
+    recordingStart = Date.now();
+
+    // Show recording UI
+    recordingPanel.style.display = 'flex';
+    recordBtn.disabled = true;
+    extractBtn.disabled = true;
+    notesInput.disabled = true;
+
+    // Start timer
+    timerInterval = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - recordingStart) / 1000);
+      const mins = Math.floor(elapsed / 60);
+      const secs = elapsed % 60;
+      recTimer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
+
+      // Auto-stop at max duration
+      if (elapsed >= MAX_RECORDING_SECS) {
+        mediaRecorder.stop();
+      }
+    }, 1000);
+  } catch (err) {
+    alert('Microphone access denied. Please allow microphone access to record.');
+  }
+});
+
+stopBtn.addEventListener('click', () => {
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
+  }
+});
+
+async function handleRecordingComplete() {
+  clearInterval(timerInterval);
+  recordingPanel.style.display = 'none';
+  recTimer.textContent = '0:00';
+
+  // Show processing state
+  recordBtn.disabled = true;
+  extractBtn.disabled = true;
+  recordBtn.innerHTML = '<span class="spinner spinner-dark"></span>Processing...';
+
+  try {
+    // Step 1: Transcribe
+    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+    const formData = new FormData();
+    formData.append('audio', blob, 'recording.webm');
+
+    const transcribeRes = await fetch('/api/meetings/transcribe', {
+      method: 'POST',
+      body: formData
+    });
+
+    if (!transcribeRes.ok) {
+      const data = await transcribeRes.json();
+      alert(data.error || 'Transcription failed');
+      return;
+    }
+
+    const { transcript } = await transcribeRes.json();
+    notesInput.value = transcript;
+
+    // Step 2: Auto-extract (uses the same extract flow)
+    extractBtn.innerHTML = '<span class="spinner"></span>Extracting...';
+
+    const extractRes = await fetch('/api/meetings/extract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes: transcript })
+    });
+
+    if (!extractRes.ok) {
+      const data = await extractRes.json();
+      if (extractRes.status === 429) {
+        showLimitMessage(data.message);
+      } else {
+        alert(data.error || 'Extraction failed');
+      }
+      return;
+    }
+
+    lastExtracted = await extractRes.json();
+    renderResults(lastExtracted);
+  } catch (err) {
+    alert('Something went wrong during processing. Please try again.');
+  } finally {
+    recordBtn.disabled = false;
+    recordBtn.textContent = 'Record Meeting';
+    extractBtn.disabled = false;
+    extractBtn.textContent = 'Extract Action Items';
+    notesInput.disabled = false;
+  }
+}
+
 // ---- Limit Reached Banner ----
 function showLimitMessage(message) {
   let banner = document.getElementById('limit-banner');

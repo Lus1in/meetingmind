@@ -143,7 +143,55 @@ a:hover { text-decoration: underline; }
   box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
 }
 
-.notes-input .btn { margin-top: 12px; }
+.input-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.divider-text {
+  color: #888;
+  font-size: 0.9rem;
+}
+
+/* Recording Panel */
+.recording-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  background: #fef2f2;
+  border: 1px solid #e63946;
+  border-radius: 8px;
+  padding: 16px 20px;
+  margin-top: 16px;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.rec-dot {
+  width: 12px;
+  height: 12px;
+  background: #e63946;
+  border-radius: 50%;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.spinner-dark {
+  border-color: #1a1a2e;
+  border-top-color: transparent;
+}
 
 /* Limit Banner */
 .limit-banner {
