@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MeetingMind — AI Meeting Notes to Action Items</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <span class="logo">MeetingMind</span>
+    <nav>
+      <a href="/login.html">Log in</a>
+      <a href="/signup.html" class="btn btn-primary btn-small">Sign up free</a>
+    </nav>
+  </div>
+
+  <div class="hero">
+    <h1>Turn meeting notes into<br>action items instantly</h1>
+    <p>Paste your meeting notes. AI extracts tasks, assigns owners, sets deadlines, and drafts follow-up emails — in seconds.</p>
+    <a href="/signup.html" class="btn btn-primary">Get started free</a>
+  </div>
+
+  <div class="features">
+    <div class="feature-card">
+      <h3>Action Items</h3>
+      <p>Automatically extract every task, who's responsible, and when it's due.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Follow-up Emails</h3>
+      <p>Get a ready-to-send email summarizing the meeting and next steps.</p>
+    </div>
+    <div class="feature-card">
+      <h3>Meeting History</h3>
+      <p>All your processed meetings saved and searchable in one place.</p>
+    </div>
+  </div>
+
+  <script>
+    // If already logged in, redirect to dashboard
+    fetch('/api/auth/me')
+      .then(r => { if (r.ok) window.location.href = '/dashboard.html'; });
+  </script>
+</body>
+</html>

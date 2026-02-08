@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Log In — MeetingMind</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <a href="/" class="logo">MeetingMind</a>
+    <nav>
+      <a href="/signup.html" class="btn btn-primary btn-small">Sign up free</a>
+    </nav>
+  </div>
+
+  <div class="form-card">
+    <h2>Log in to MeetingMind</h2>
+    <div class="error-msg" id="error"></div>
+    <form id="login-form">
+      <div class="form-group">
+        <label for="email">Email</label>
+        <input type="email" id="email" required placeholder="you@company.com">
+      </div>
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" required placeholder="Your password">
+      </div>
+      <button type="submit" class="btn btn-primary" style="width:100%">Log in</button>
+    </form>
+    <div class="form-footer">Don't have an account? <a href="/signup.html">Sign up</a></div>
+  </div>
+
+  <script src="/js/auth.js"></script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard — MeetingMind</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <span class="logo">MeetingMind</span>
+    <nav>
+      <span class="user-email" id="user-email"></span>
+      <button class="btn btn-secondary btn-small" id="logout-btn">Log out</button>
+    </nav>
+  </div>
+
+  <div class="container dashboard">
+    <!-- Input Section -->
+    <h2>New Meeting</h2>
+    <div class="notes-input">
+      <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
+      <button class="btn btn-primary" id="extract-btn">Extract Action Items</button>
+    </div>
+
+    <!-- Results Section -->
+    <div class="results" id="results">
+      <h3>Action Items</h3>
+      <table class="action-items-table">
+        <thead>
+          <tr><th>Task</th><th>Owner</th><th>Deadline</th></tr>
+        </thead>
+        <tbody id="action-items-body"></tbody>
+      </table>
+
+      <h3>Follow-up Email</h3>
+      <div class="email-box">
+        <button class="btn btn-secondary btn-small copy-btn" id="copy-email-btn">Copy</button>
+        <div id="email-content"></div>
+      </div>
+
+      <div class="results-actions">
+        <button class="btn btn-primary" id="save-btn">Save Meeting</button>
+        <button class="btn btn-secondary" id="discard-btn">Discard</button>
+      </div>
+    </div>
+
+    <!-- Past Meetings -->
+    <div class="past-meetings">
+      <h2>Past Meetings</h2>
+      <div id="meetings-list"></div>
+    </div>
+  </div>
+
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>
