@@ -61,8 +61,14 @@ router.get('/me', (req, res) => {
   if (!req.session.userId) {
     return res.status(401).json({ error: 'Not logged in' });
   }
-  const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.session.userId);
-  res.json({ id: user.id, email: user.email });
+  const user = db.prepare('SELECT id, email, plan, is_lifetime, subscription_status FROM users WHERE id = ?').get(req.session.userId);
+  res.json({
+    id: user.id,
+    email: user.email,
+    plan: user.plan,
+    is_lifetime: user.is_lifetime === 1,
+    subscription_status: user.subscription_status
+  });
 });
 
 // POST /api/auth/logout

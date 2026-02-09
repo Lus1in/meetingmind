@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Successful — MeetingMind</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <a href="/" class="logo">MeetingMind</a>
+  </div>
+
+  <div class="billing-result">
+    <div class="billing-card success">
+      <div class="billing-icon">&#10003;</div>
+      <h2>Payment Successful!</h2>
+      <p id="plan-info">Your account has been upgraded.</p>
+      <a href="/dashboard.html" class="btn btn-primary">Go to Dashboard</a>
+    </div>
+  </div>
+
+  <script>
+    fetch('/api/auth/me')
+      .then(r => r.ok ? r.json() : null)
+      .then(user => {
+        if (user) {
+          const planNames = { free: 'Free', ltd: 'LTD', fltd: 'FLTD' };
+          document.getElementById('plan-info').textContent =
+            `You're now on the ${planNames[user.plan] || user.plan} plan. Enjoy!`;
+        }
+      });
+  </script>
+</body>
+</html>

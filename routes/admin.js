@@ -26,12 +26,40 @@ router.post('/upgrade', (req, res) => {
     return res.status(400).json({ error: 'Email and plan are required' });
   }
 
-  const validPlans = ['free', 'ltd', 'fltd'];
+  const validPlans = ['free', 'ltd', 'fltd', 'sub_basic', 'sub_pro'];
   if (!validPlans.includes(plan)) {
     return res.status(400).json({ error: `Invalid plan. Must be one of: ${validPlans.join(', ')}` });
   }
 
-  const result = db.prepare('UPDATE users SET plan = ? WHERE email = ?').run(plan, email);
+  const newIsLifetime = ['ltd', 'fltd'].includes(plan) ? 1 : 0;
+
+  // Guard: prevent clearing lifetime unless force: true
+  const existing = db.prepare('SELECT is_lifetime FROM users WHERE email = ?').get(email);
+  if (existing && existing.is_lifetime === 1 && newIsLifetime === 0) {
+    if (!req.body.force) {
+      return res.status(409).json({
+        error: 'This user has a lifetime plan. Pass { "force": true } to downgrade.',
+        current_lifetime: true
+      });
+    }
+    // Temporarily drop trigger to allow the override
+    db.exec('DROP TRIGGER IF EXISTS protect_lifetime_flag');
+  }
+
+  let result;
+  try {
+    result = db.prepare('UPDATE users SET plan = ?, is_lifetime = ? WHERE email = ?').run(plan, newIsLifetime, email);
+  } finally {
+    // Re-create trigger if it was dropped
+    db.exec(`
+      CREATE TRIGGER IF NOT EXISTS protect_lifetime_flag
+      BEFORE UPDATE ON users
+      WHEN OLD.is_lifetime = 1 AND NEW.is_lifetime = 0
+      BEGIN
+        SELECT RAISE(ABORT, 'Cannot clear is_lifetime flag. Drop trigger protect_lifetime_flag to override.');
+      END;
+    `);
+  }
 
   if (result.changes === 0) {
     return res.status(404).json({ error: 'User not found' });

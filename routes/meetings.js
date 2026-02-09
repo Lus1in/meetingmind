@@ -53,9 +53,11 @@ const MOCK_RESPONSE = {
 
 // Plan limits: { lifetime_max, monthly_max }
 const PLAN_LIMITS = {
-  free: { lifetime: 5, monthly: null },
-  ltd:  { lifetime: null, monthly: 50 },
-  fltd: { lifetime: null, monthly: 100 }
+  free:      { lifetime: 5,    monthly: null },
+  ltd:       { lifetime: null, monthly: 50 },
+  fltd:      { lifetime: null, monthly: 100 },
+  sub_basic: { lifetime: null, monthly: 50 },
+  sub_pro:   { lifetime: null, monthly: 100 }
 };
 
 function getCurrentMonth() {

@@ -15,6 +15,10 @@ db.exec(`
     email TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL,
     plan TEXT NOT NULL DEFAULT 'free',
+    is_lifetime INTEGER NOT NULL DEFAULT 0,
+    stripe_customer_id TEXT,
+    stripe_subscription_id TEXT,
+    subscription_status TEXT NOT NULL DEFAULT 'none',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
@@ -37,10 +41,41 @@ db.exec(`
   );
 `);
 
-// Migration: add plan column if upgrading from older schema
+// Migrations for existing databases
 const cols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
 if (!cols.includes('plan')) {
   db.exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
 }
+if (!cols.includes('is_lifetime')) {
+  db.exec("ALTER TABLE users ADD COLUMN is_lifetime INTEGER NOT NULL DEFAULT 0");
+  // Backfill: mark existing ltd/fltd users as lifetime
+  db.exec("UPDATE users SET is_lifetime = 1 WHERE plan IN ('ltd', 'fltd')");
+}
+if (!cols.includes('stripe_customer_id')) {
+  db.exec("ALTER TABLE users ADD COLUMN stripe_customer_id TEXT");
+}
+if (!cols.includes('stripe_subscription_id')) {
+  db.exec("ALTER TABLE users ADD COLUMN stripe_subscription_id TEXT");
+}
+if (!cols.includes('subscription_status')) {
+  db.exec("ALTER TABLE users ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'none'");
+}
+
+// Constraints & triggers
+db.exec(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_users_stripe_customer
+    ON users(stripe_customer_id) WHERE stripe_customer_id IS NOT NULL;
+`);
+
+// Fix 5: DB-level trigger — makes it physically impossible to clear is_lifetime
+// Admin/migration scripts must DROP this trigger first to override
+db.exec(`
+  CREATE TRIGGER IF NOT EXISTS protect_lifetime_flag
+  BEFORE UPDATE ON users
+  WHEN OLD.is_lifetime = 1 AND NEW.is_lifetime = 0
+  BEGIN
+    SELECT RAISE(ABORT, 'Cannot clear is_lifetime flag. Drop trigger protect_lifetime_flag to override.');
+  END;
+`);
 
 module.exports = db;

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account — MeetingMind</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <a href="/" class="logo">MeetingMind</a>
+    <nav>
+      <a href="/dashboard.html">Dashboard</a>
+      <a href="/pricing.html">Pricing</a>
+      <button class="btn btn-secondary btn-small" id="logout-btn">Log out</button>
+    </nav>
+  </div>
+
+  <div class="container" style="max-width:600px; padding-top:40px;">
+    <h2>Account</h2>
+
+    <div class="account-card" id="account-card">
+      <div class="account-row">
+        <span class="account-label">Email</span>
+        <span id="account-email">—</span>
+      </div>
+      <div class="account-row">
+        <span class="account-label">Plan</span>
+        <span id="account-plan">—</span>
+      </div>
+      <div class="account-row" id="status-row" style="display:none">
+        <span class="account-label">Subscription Status</span>
+        <span id="account-status">—</span>
+      </div>
+      <div class="account-row">
+        <span class="account-label">Usage This Month</span>
+        <span id="account-usage">—</span>
+      </div>
+    </div>
+
+    <div class="account-actions" id="account-actions"></div>
+  </div>
+
+  <script>
+    const PLAN_NAMES = {
+      free: 'Free',
+      ltd: 'LTD (Lifetime)',
+      fltd: 'FLTD (Lifetime)',
+      sub_basic: 'Basic (Monthly)',
+      sub_pro: 'Pro (Monthly)'
+    };
+
+    // Auth guard
+    fetch('/api/auth/me')
+      .then(r => {
+        if (!r.ok) { window.location.href = '/login.html'; return null; }
+        return r.json();
+      })
+      .then(user => {
+        if (!user) return;
+
+        document.getElementById('account-email').textContent = user.email;
+        document.getElementById('account-plan').textContent = PLAN_NAMES[user.plan] || user.plan;
+
+        if (user.is_lifetime) {
+          document.getElementById('account-plan').innerHTML =
+            (PLAN_NAMES[user.plan] || user.plan) + ' <span class="plan-badge lifetime">Lifetime</span>';
+        }
+
+        // Show subscription status if applicable
+        if (['sub_basic', 'sub_pro'].includes(user.plan) || user.subscription_status !== 'none') {
+          document.getElementById('status-row').style.display = 'flex';
+          const statusEl = document.getElementById('account-status');
+          statusEl.textContent = user.subscription_status;
+          statusEl.className = 'status-' + user.subscription_status;
+        }
+
+        // Actions
+        const actions = document.getElementById('account-actions');
+        if (user.is_lifetime) {
+          actions.innerHTML = '<p class="account-note">You have lifetime access. No billing to manage.</p>';
+        } else if (['sub_basic', 'sub_pro'].includes(user.plan)) {
+          actions.innerHTML = '<button class="btn btn-secondary" onclick="openPortal()">Manage Subscription</button>';
+        } else {
+          actions.innerHTML = '<a href="/pricing.html" class="btn btn-primary">Upgrade Plan</a>';
+        }
+
+        // Load usage
+        loadUsage();
+      });
+
+    async function loadUsage() {
+      const res = await fetch('/api/meetings/extract', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notes: '' })
+      });
+      // We won't actually call extract — instead use a dedicated usage endpoint
+      // For now, we'll count from meetings list
+      const meetingsRes = await fetch('/api/meetings');
+      if (meetingsRes.ok) {
+        const meetings = await meetingsRes.json();
+        document.getElementById('account-usage').textContent = `${meetings.length} meetings saved`;
+      }
+    }
+
+    async function openPortal() {
+      const res = await fetch('/api/billing/portal', { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) {
+        window.location.href = data.url;
+      } else {
+        alert(data.error);
+      }
+    }
+
+    document.getElementById('logout-btn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      window.location.href = '/';
+    });
+  </script>
+</body>
+</html>

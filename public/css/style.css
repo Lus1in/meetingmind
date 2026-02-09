@@ -303,3 +303,171 @@ a:hover { text-decoration: underline; }
   padding: 40px;
   color: #888;
 }
+
+/* Pricing Page */
+.pricing-header {
+  text-align: center;
+  padding: 60px 20px 40px;
+}
+
+.pricing-header h1 { font-size: 2rem; margin-bottom: 8px; }
+.pricing-header p { color: #555; font-size: 1.1rem; }
+
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 24px;
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 0 20px 80px;
+}
+
+.pricing-card {
+  background: #fff;
+  border: 2px solid #e0e0e0;
+  border-radius: 12px;
+  padding: 32px 24px;
+  text-align: center;
+  position: relative;
+}
+
+.pricing-card.featured {
+  border-color: #4361ee;
+  box-shadow: 0 4px 16px rgba(67, 97, 238, 0.15);
+}
+
+.pricing-card .badge {
+  position: absolute;
+  top: -12px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #4361ee;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 4px 14px;
+  border-radius: 20px;
+}
+
+.pricing-card h3 { font-size: 1.2rem; margin-bottom: 8px; }
+
+.pricing-card .price {
+  font-size: 2.4rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #1a1a2e;
+}
+
+.plan-features {
+  list-style: none;
+  margin-bottom: 24px;
+  text-align: left;
+}
+
+.plan-features li {
+  padding: 6px 0;
+  font-size: 0.9rem;
+  color: #444;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.plan-features li::before {
+  content: "\2713  ";
+  color: #4361ee;
+  font-weight: 700;
+}
+
+/* Billing Result Pages */
+.billing-result {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 60vh;
+  padding: 40px 20px;
+}
+
+.billing-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 48px 40px;
+  text-align: center;
+  max-width: 420px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+}
+
+.billing-card h2 { margin-bottom: 12px; }
+.billing-card p { color: #555; margin-bottom: 24px; }
+
+.billing-icon {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin: 0 auto 20px;
+  color: #fff;
+}
+
+.billing-card.success .billing-icon { background: #2ecc71; }
+.billing-card.cancel .billing-icon { background: #e63946; }
+
+/* Plan Badge */
+.plan-badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: #e0e0e0;
+  color: #555;
+}
+
+.plan-badge.lifetime {
+  background: #4361ee;
+  color: #fff;
+}
+
+/* Pricing extras */
+.price-note { font-size: 0.9rem; font-weight: 400; color: #888; }
+.pricing-section-title { text-align: center; margin: 40px 0 24px; font-size: 1.3rem; }
+
+.lifetime-banner {
+  background: #eef2ff;
+  border: 1px solid #4361ee;
+  border-radius: 8px;
+  padding: 14px 20px;
+  text-align: center;
+  margin-bottom: 24px;
+  color: #1a1a2e;
+  font-size: 0.95rem;
+}
+
+/* Account Page */
+.account-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 24px;
+  margin-top: 20px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.account-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.account-row:last-child { border-bottom: none; }
+.account-label { font-weight: 500; color: #555; }
+
+.account-actions { margin-top: 20px; }
+.account-note { color: #888; font-size: 0.9rem; }
+
+.status-active { color: #2ecc71; font-weight: 600; }
+.status-past_due { color: #e67e22; font-weight: 600; }
+.status-canceled { color: #e63946; font-weight: 600; }
+.status-none { color: #888; }

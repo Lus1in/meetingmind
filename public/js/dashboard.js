@@ -9,6 +9,19 @@ async function checkAuth() {
   }
   currentUser = await res.json();
   document.getElementById('user-email').textContent = currentUser.email;
+
+  // Show plan badge
+  const badge = document.getElementById('plan-badge');
+  const planLabels = { free: 'Free', ltd: 'LTD', fltd: 'FLTD', sub_basic: 'Basic', sub_pro: 'Pro' };
+  if (currentUser.is_lifetime) {
+    badge.textContent = planLabels[currentUser.plan] || currentUser.plan;
+    badge.className = 'plan-badge lifetime';
+    badge.style.display = 'inline-block';
+  } else if (currentUser.plan !== 'free') {
+    badge.textContent = planLabels[currentUser.plan] || currentUser.plan;
+    badge.className = 'plan-badge';
+    badge.style.display = 'inline-block';
+  }
 }
 
 checkAuth().then(loadMeetings);
