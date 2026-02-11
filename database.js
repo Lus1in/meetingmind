@@ -1,7 +1,9 @@
 const Database = require('better-sqlite3');
 const path = require('path');
 
-const db = new Database(path.join(__dirname, 'data.db'));
+// DATABASE_PATH env var lets Render mount a persistent disk (e.g. /var/data/data.db)
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, 'data.db');
+const db = new Database(dbPath);
 
 // Enable WAL mode for better performance
 db.pragma('journal_mode = WAL');
@@ -41,7 +43,13 @@ db.exec(`
   );
 `);
 
-// Migrations for existing databases
+// Migrations for existing databases — meetings
+const meetingCols = db.prepare("PRAGMA table_info(meetings)").all().map(c => c.name);
+if (!meetingCols.includes('title')) {
+  db.exec("ALTER TABLE meetings ADD COLUMN title TEXT");
+}
+
+// Migrations for existing databases — users
 const cols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
 if (!cols.includes('plan')) {
   db.exec("ALTER TABLE users ADD COLUMN plan TEXT NOT NULL DEFAULT 'free'");
@@ -60,6 +68,25 @@ if (!cols.includes('stripe_subscription_id')) {
 if (!cols.includes('subscription_status')) {
   db.exec("ALTER TABLE users ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'none'");
 }
+if (!cols.includes('reset_token')) {
+  db.exec("ALTER TABLE users ADD COLUMN reset_token TEXT");
+}
+if (!cols.includes('reset_token_expires')) {
+  db.exec("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME");
+}
+
+// OAuth provider identities (supports Google, Apple, Microsoft, etc.)
+db.exec(`
+  CREATE TABLE IF NOT EXISTS user_identities (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    provider TEXT NOT NULL,
+    provider_id TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(provider, provider_id)
+  );
+`);
 
 // Constraints & triggers
 db.exec(`

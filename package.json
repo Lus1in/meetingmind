@@ -19,7 +19,9 @@
     "dotenv": "^17.2.4",
     "express": "^5.2.1",
     "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
+    "openai": "^6.19.0",
     "stripe": "^20.3.1"
   }
 }

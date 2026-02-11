@@ -5,12 +5,46 @@ const fs = require('fs');
 const os = require('os');
 const db = require('../database');
 const requireAuth = require('../middleware/auth');
+const rateLimit = require('../middleware/rateLimit');
 
-// Multer: store uploads in OS temp dir, max 25MB
+const extractLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }); // 20 per 15min
+
+// Multer: store uploads in OS temp dir, max 25MB (used by /transcribe)
 const upload = multer({
   dest: os.tmpdir(),
   limits: { fileSize: 25 * 1024 * 1024 }
 });
+
+// Multer: audio upload with format validation (used by /upload)
+const ALLOWED_AUDIO_EXTS = ['.mp3', '.wav', '.m4a', '.webm'];
+const uploadsDir = path.join(__dirname, '..', 'uploads');
+// Ensure uploads directory exists
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
+
+const audioUpload = multer({
+  dest: uploadsDir,
+  limits: { fileSize: 25 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (ALLOWED_AUDIO_EXTS.includes(ext)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Allowed: mp3, wav, m4a, webm'));
+    }
+  }
+});
+
+// OpenAI client (lazy init like Anthropic)
+let openai = null;
+function getOpenAI() {
+  if (process.env.MOCK_MODE === 'true') return null;
+  if (!process.env.OPENAI_API_KEY) return null;
+  if (!openai) {
+    const OpenAI = require('openai');
+    openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+  }
+  return openai;
+}
 
 const router = express.Router();
 
@@ -60,13 +94,42 @@ const PLAN_LIMITS = {
   sub_pro:   { lifetime: null, monthly: 100 }
 };
 
+// Meeting storage limits (separate from extract usage limits)
+const MEETING_STORAGE_LIMITS = {
+  free: 3,
+  ltd: null,       // unlimited
+  fltd: null,
+  sub_basic: null,
+  sub_pro: null
+};
+
+function checkMeetingStorageLimit(userId) {
+  const user = db.prepare('SELECT plan FROM users WHERE id = ?').get(userId);
+  const plan = (user && user.plan) || 'free';
+  const max = MEETING_STORAGE_LIMITS[plan];
+
+  if (!max) return { allowed: true, plan };
+
+  const count = db.prepare('SELECT COUNT(*) as count FROM meetings WHERE user_id = ?').get(userId).count;
+  if (count >= max) {
+    return {
+      allowed: false,
+      plan,
+      message: `Free plan allows ${max} saved meetings. Upgrade for unlimited storage.`,
+      count,
+      max
+    };
+  }
+  return { allowed: true, plan, count, max };
+}
+
 function getCurrentMonth() {
   return new Date().toISOString().slice(0, 7); // "2026-02"
 }
 
 function checkUsageLimit(userId) {
   const user = db.prepare('SELECT plan FROM users WHERE id = ?').get(userId);
-  const plan = user.plan || 'free';
+  const plan = (user && user.plan) || 'free';
   const limits = PLAN_LIMITS[plan];
 
   if (!limits) return { allowed: true, plan };
@@ -159,7 +222,7 @@ router.post('/transcribe', requireAuth, upload.single('audio'), async (req, res)
     } else {
       // Future: plug in OpenAI Whisper, Deepgram, etc.
       // const transcript = await transcribeWithWhisper(tempPath);
-      return res.status(501).json({ error: 'Transcription provider not configured. Set MOCK_MODE=true or implement a provider.' });
+      return res.status(501).json({ error: 'Transcription is not available right now. Please try again later.' });
     }
 
     res.json({ transcript });
@@ -172,8 +235,81 @@ router.post('/transcribe', requireAuth, upload.single('audio'), async (req, res)
   }
 });
 
+// POST /api/meetings/upload — upload audio file, transcribe with Whisper, save meeting
+router.post('/upload', requireAuth, (req, res, next) => {
+  audioUpload.single('audio')(req, res, (err) => {
+    if (err) {
+      if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ error: 'File too large. Maximum size is 25MB.' });
+      }
+      return res.status(400).json({ error: err.message || 'Upload failed' });
+    }
+    next();
+  });
+}, async (req, res) => {
+  if (!req.file) {
+    return res.status(400).json({ error: 'Audio file is required. Allowed formats: mp3, wav, m4a' });
+  }
+
+  // Check meeting storage limit before doing any work
+  const storageLimit = checkMeetingStorageLimit(req.session.userId);
+  if (!storageLimit.allowed) {
+    fs.unlink(req.file.path, () => {});
+    return res.status(403).json({ error: 'meeting_limit', message: storageLimit.message });
+  }
+
+  const filePath = req.file.path;
+  const title = (req.body.title || '').trim() ||
+    `Meeting \u2014 ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+
+  try {
+    let transcript;
+
+    if (process.env.MOCK_MODE === 'true') {
+      transcript = MOCK_TRANSCRIPT;
+    } else {
+      const client = getOpenAI();
+      if (!client) {
+        return res.status(501).json({ error: 'Transcription is not available right now. Please try again later.' });
+      }
+
+      // Whisper needs the original extension to detect format
+      const ext = path.extname(req.file.originalname).toLowerCase() || '.mp3';
+      const renamedPath = filePath + ext;
+      fs.renameSync(filePath, renamedPath);
+
+      try {
+        const result = await client.audio.transcriptions.create({
+          file: fs.createReadStream(renamedPath),
+          model: 'whisper-1'
+        });
+        transcript = result.text;
+      } finally {
+        fs.unlink(renamedPath, () => {});
+      }
+    }
+
+    // Save to database
+    const row = db.prepare(
+      'INSERT INTO meetings (user_id, title, raw_notes, action_items) VALUES (?, ?, ?, ?)'
+    ).run(req.session.userId, title, transcript, '{"action_items":[],"follow_up_email":""}');
+
+    res.status(201).json({
+      id: row.lastInsertRowid,
+      title,
+      transcript
+    });
+  } catch (err) {
+    console.error('Upload/transcribe error:', err.message);
+    res.status(500).json({ error: 'Transcription failed. Please try again.' });
+  } finally {
+    // Clean up original temp file (if it still exists — may have been renamed)
+    fs.unlink(filePath, () => {});
+  }
+});
+
 // POST /api/meetings/extract — send notes to Claude (or mock), return structured data
-router.post('/extract', requireAuth, async (req, res) => {
+router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
   const { notes } = req.body;
 
   if (!notes || notes.trim().length === 0) {
@@ -229,6 +365,12 @@ router.post('/', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'Notes and action items are required' });
   }
 
+  // Check meeting storage limit
+  const storageLimit = checkMeetingStorageLimit(req.session.userId);
+  if (!storageLimit.allowed) {
+    return res.status(403).json({ error: 'meeting_limit', message: storageLimit.message });
+  }
+
   const result = db.prepare(
     'INSERT INTO meetings (user_id, raw_notes, action_items) VALUES (?, ?, ?)'
   ).run(req.session.userId, raw_notes, JSON.stringify(action_items));
@@ -242,15 +384,31 @@ router.post('/', requireAuth, (req, res) => {
 // GET /api/meetings — get all meetings for logged-in user
 router.get('/', requireAuth, (req, res) => {
   const meetings = db.prepare(
-    'SELECT id, raw_notes, action_items, created_at FROM meetings WHERE user_id = ? ORDER BY created_at DESC'
+    'SELECT id, title, raw_notes, action_items, created_at FROM meetings WHERE user_id = ? ORDER BY created_at DESC'
   ).all(req.session.userId);
 
-  const parsed = meetings.map(m => ({
-    ...m,
-    action_items: JSON.parse(m.action_items)
-  }));
+  const parsed = meetings.map(m => {
+    let action_items;
+    try { action_items = JSON.parse(m.action_items); } catch { action_items = { action_items: [], follow_up_email: '' }; }
+    return { ...m, action_items };
+  });
 
   res.json(parsed);
+});
+
+// GET /api/meetings/:id — get a single meeting (must belong to logged-in user)
+router.get('/:id', requireAuth, (req, res) => {
+  const meeting = db.prepare(
+    'SELECT id, title, raw_notes, action_items, created_at FROM meetings WHERE id = ? AND user_id = ?'
+  ).get(req.params.id, req.session.userId);
+
+  if (!meeting) {
+    return res.status(404).json({ error: 'Meeting not found' });
+  }
+
+  let action_items;
+  try { action_items = JSON.parse(meeting.action_items); } catch { action_items = { action_items: [], follow_up_email: '' }; }
+  res.json({ ...meeting, action_items });
 });
 
 // DELETE /api/meetings/:id — delete a meeting (only if owned by user)

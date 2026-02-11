@@ -4,15 +4,45 @@ const express = require('express');
 const session = require('express-session');
 
 const isProd = process.env.NODE_ENV === 'production';
+const isMock = process.env.MOCK_MODE === 'true';
 
-// Debug: verify .env loaded correctly (never in production)
+// ---- Startup Validation ----
+// Always required
+if (!process.env.SESSION_SECRET) {
+  console.error('[startup] FATAL: SESSION_SECRET is not set. Exiting.');
+  process.exit(1);
+}
+
+// Required when running real (MOCK_MODE=false)
+if (!isMock) {
+  const critical = { CLAUDE_API_KEY: process.env.CLAUDE_API_KEY, OPENAI_API_KEY: process.env.OPENAI_API_KEY };
+  const missing = Object.entries(critical).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length > 0) {
+    console.error(`[startup] FATAL: MOCK_MODE is false but missing: ${missing.join(', ')}`);
+    console.error('[startup] Set MOCK_MODE=true for local dev, or provide these vars.');
+    process.exit(1);
+  }
+}
+
+// Optional — warn if missing (features disabled, not fatal)
+const optional = {
+  STRIPE_SECRET_KEY: 'Billing',
+  STRIPE_WEBHOOK_SECRET: 'Stripe webhooks',
+  GOOGLE_CLIENT_ID: 'Google OAuth',
+  RESEND_API_KEY: 'Password reset emails',
+};
+Object.entries(optional).forEach(([key, label]) => {
+  if (!process.env[key]) console.warn(`[startup] WARN: ${key} not set — ${label} disabled`);
+});
+
+// Debug log (dev only)
 if (!isProd) {
-  console.log('[env] STRIPE_SECRET_KEY:', process.env.STRIPE_SECRET_KEY ? 'set' : 'MISSING');
-  console.log('[env] STRIPE_WEBHOOK_SECRET:', process.env.STRIPE_WEBHOOK_SECRET ? 'set' : 'MISSING or empty');
   console.log('[env] MOCK_MODE:', process.env.MOCK_MODE);
 }
 
+const SQLiteStore = require('./lib/session-store');
 const authRoutes = require('./routes/auth');
+const oauthRoutes = require('./routes/oauth');
 const meetingRoutes = require('./routes/meetings');
 const adminRoutes = require('./routes/admin');
 const billingRoutes = require('./routes/billing');
@@ -30,27 +60,37 @@ app.use('/api/billing/webhook', express.raw({ type: 'application/json' }));
 
 // Middleware
 app.use(express.json());
+app.use(express.urlencoded({ extended: false })); // Apple OAuth POSTs form data
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
+  store: new SQLiteStore(),
   secret: process.env.SESSION_SECRET,
   resave: false,
   saveUninitialized: false,
   cookie: {
     httpOnly: true,
     secure: isProd,
-    sameSite: isProd ? 'lax' : 'lax',
+    sameSite: 'lax',
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   }
 }));
 
-// Health check
-app.get('/api/health', (req, res) => {
-  res.json({ ok: true });
+// Health check — safe config flags only, never secrets
+app.get('/api/health', (_req, res) => {
+  res.json({
+    ok: true,
+    mock_mode: isMock,
+    oauth: !!(process.env.GOOGLE_CLIENT_ID || process.env.APPLE_CLIENT_ID),
+    email: !!process.env.RESEND_API_KEY,
+    stripe: !!process.env.STRIPE_SECRET_KEY,
+    transcription: !!(process.env.OPENAI_API_KEY || isMock)
+  });
 });
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/oauth', oauthRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/billing', billingRoutes);

@@ -18,8 +18,20 @@
   </div>
 
   <div class="container dashboard">
-    <!-- Input Section -->
-    <h2>New Meeting</h2>
+    <!-- Upload Audio Section -->
+    <h2>Upload Audio</h2>
+    <div class="upload-section">
+      <p class="helper-text">Upload a recording (mp3, wav, or m4a) and we'll transcribe it automatically. The transcript is saved as a new meeting you can review anytime.</p>
+      <input type="text" id="upload-title" placeholder="Meeting title (optional)" class="upload-title-input">
+      <div class="upload-row">
+        <input type="file" id="audio-file" accept=".mp3,.wav,.m4a,.webm">
+        <button class="btn btn-primary" id="upload-btn">Upload & Transcribe</button>
+      </div>
+      <div class="upload-status" id="upload-status"></div>
+    </div>
+
+    <!-- Paste Notes Section -->
+    <h2>Paste Notes</h2>
     <div class="notes-input">
       <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
       <div class="input-actions">
@@ -60,8 +72,23 @@
       </div>
     </div>
 
+    <!-- Meeting Detail View -->
+    <div class="meeting-detail" id="meeting-detail" style="display:none">
+      <button class="btn btn-secondary btn-small" id="back-to-list">&larr; Back to list</button>
+      <h2 id="detail-title"></h2>
+      <span class="detail-date" id="detail-date"></span>
+      <h3 class="transcript-label">Transcript</h3>
+      <div class="detail-transcript" id="detail-transcript"></div>
+      <div class="export-actions">
+        <button class="btn btn-secondary btn-small" id="copy-transcript-btn">Copy transcript</button>
+        <a class="btn btn-secondary btn-small" id="email-gmail-btn" href="#" target="_blank">Email (Gmail)</a>
+        <a class="btn btn-secondary btn-small" id="email-outlook-btn" href="#" target="_blank">Email (Outlook)</a>
+      </div>
+      <p class="privacy-note">Your transcripts are private and only visible to you.</p>
+    </div>
+
     <!-- Past Meetings -->
-    <div class="past-meetings">
+    <div class="past-meetings" id="past-meetings-section">
       <h2>Past Meetings</h2>
       <div id="meetings-list"></div>
     </div>
