@@ -177,6 +177,21 @@ function renderResults(data) {
   });
 
   document.getElementById('email-content').textContent = data.follow_up_email;
+
+  // Set up email buttons for extracted follow-up
+  const emailActions = document.getElementById('extract-email-actions');
+  if (data.follow_up_email) {
+    const subject = encodeURIComponent('Meeting follow-up');
+    const body = encodeURIComponent(data.follow_up_email);
+    document.getElementById('extract-gmail-btn').href =
+      `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
+    document.getElementById('extract-outlook-btn').href =
+      `https://outlook.live.com/mail/0/deeplink/compose?subject=${subject}&body=${body}`;
+    emailActions.style.display = 'flex';
+  } else {
+    emailActions.style.display = 'none';
+  }
+
   resultsDiv.style.display = 'block';
   resultsDiv.scrollIntoView({ behavior: 'smooth' });
 }
@@ -256,6 +271,14 @@ async function loadMeetings() {
       const itemsRows = m.action_items.action_items.map(item =>
         `<tr><td>${escapeHtml(item.task)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.deadline)}</td></tr>`
       ).join('');
+      const followUp = m.action_items.follow_up_email || '';
+      const emailSubject = encodeURIComponent(`Meeting follow-up \u2014 ${title}`);
+      const emailBody = encodeURIComponent(followUp);
+      const emailBtns = followUp ? `
+          <div class="export-actions" style="margin-top:8px">
+            <a class="btn btn-secondary btn-small" href="https://mail.google.com/mail/?view=cm&su=${emailSubject}&body=${emailBody}" target="_blank">Email (Gmail)</a>
+            <a class="btn btn-secondary btn-small" href="https://outlook.live.com/mail/0/deeplink/compose?subject=${emailSubject}&body=${emailBody}" target="_blank">Email (Outlook)</a>
+          </div>` : '';
       actionsHtml = `
         <details>
           <summary>View action items & email</summary>
@@ -264,7 +287,7 @@ async function loadMeetings() {
             <tbody>${itemsRows}</tbody>
           </table>
           <h4 style="margin:12px 0 8px">Follow-up Email</h4>
-          <div class="email-box">${escapeHtml(m.action_items.follow_up_email || '')}</div>
+          <div class="email-box">${escapeHtml(followUp)}</div>${emailBtns}
         </details>
       `;
     }
@@ -341,6 +364,23 @@ document.getElementById('copy-transcript-btn').addEventListener('click', () => {
     btn.textContent = 'Copied!';
     setTimeout(() => { btn.textContent = 'Copy transcript'; }, 2000);
   });
+});
+
+// ---- Use Transcript for Extraction ----
+document.getElementById('use-for-extract-btn').addEventListener('click', () => {
+  const transcript = document.getElementById('detail-transcript').textContent;
+  if (!transcript) return;
+
+  // Fill the notes textarea with the transcript
+  notesInput.value = transcript;
+
+  // Navigate back to the extraction area
+  document.getElementById('meeting-detail').style.display = 'none';
+  document.getElementById('past-meetings-section').style.display = 'block';
+
+  // Scroll to the extract section and focus
+  notesInput.scrollIntoView({ behavior: 'smooth' });
+  notesInput.focus();
 });
 
 // ---- Delete Meeting ----

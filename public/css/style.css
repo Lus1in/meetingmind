@@ -145,9 +145,16 @@ a:hover { text-decoration: underline; }
 }
 
 /* Password Toggle (eye icon) */
+.password-wrapper {
+  position: relative;
+}
+.password-wrapper input {
+  width: 100%;
+  padding-right: 44px;
+}
 .password-toggle {
   position: absolute;
-  right: 8px;
+  right: 12px;
   top: 50%;
   transform: translateY(-50%);
   background: none;

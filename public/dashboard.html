@@ -31,8 +31,9 @@
     </div>
 
     <!-- Paste Notes Section -->
-    <h2>Paste Notes</h2>
+    <h2>Extract Action Items</h2>
     <div class="notes-input">
+      <p class="helper-text">Paste your transcript or meeting notes below, then click <strong>Extract</strong> to generate action items and a follow-up email.</p>
       <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
       <div class="input-actions">
         <button class="btn btn-primary" id="extract-btn">Extract Action Items</button>
@@ -65,6 +66,10 @@
         <button class="btn btn-secondary btn-small copy-btn" id="copy-email-btn">Copy</button>
         <div id="email-content"></div>
       </div>
+      <div class="export-actions" id="extract-email-actions" style="display:none">
+        <a class="btn btn-secondary btn-small" id="extract-gmail-btn" href="#" target="_blank">Email (Gmail)</a>
+        <a class="btn btn-secondary btn-small" id="extract-outlook-btn" href="#" target="_blank">Email (Outlook)</a>
+      </div>
 
       <div class="results-actions">
         <button class="btn btn-primary" id="save-btn">Save Meeting</button>
@@ -81,6 +86,7 @@
       <div class="detail-transcript" id="detail-transcript"></div>
       <div class="export-actions">
         <button class="btn btn-secondary btn-small" id="copy-transcript-btn">Copy transcript</button>
+        <button class="btn btn-primary btn-small" id="use-for-extract-btn">Use for extraction</button>
         <a class="btn btn-secondary btn-small" id="email-gmail-btn" href="#" target="_blank">Email (Gmail)</a>
         <a class="btn btn-secondary btn-small" id="email-outlook-btn" href="#" target="_blank">Email (Outlook)</a>
       </div>

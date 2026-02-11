@@ -17,7 +17,10 @@ document.querySelectorAll('input[type="password"].toggleable').forEach(input => 
     btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
   });
 
-  input.parentNode.style.position = 'relative';
-  input.style.paddingRight = '44px';
-  input.parentNode.appendChild(btn);
+  // Wrap input in a password-wrapper for proper icon centering
+  const wrapper = document.createElement('div');
+  wrapper.className = 'password-wrapper';
+  input.parentNode.insertBefore(wrapper, input);
+  wrapper.appendChild(input);
+  wrapper.appendChild(btn);
 });
