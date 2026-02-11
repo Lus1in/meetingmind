@@ -413,6 +413,57 @@ router.get('/:id', requireAuth, (req, res) => {
   res.json({ ...meeting, action_items });
 });
 
+// PATCH /api/meetings/:id/transcript — edit transcript
+router.patch('/:id/transcript', requireAuth, (req, res) => {
+  const { transcript } = req.body;
+  if (typeof transcript !== 'string') {
+    return res.status(400).json({ error: 'transcript must be a string' });
+  }
+  if (transcript.length > 200000) {
+    return res.status(400).json({ error: 'Transcript too long (max 200,000 characters)' });
+  }
+
+  const result = db.prepare(
+    "UPDATE meetings SET raw_notes = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?"
+  ).run(transcript, req.params.id, req.session.userId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Meeting not found' });
+  }
+  res.json({ ok: true });
+});
+
+// PATCH /api/meetings/:id/extraction — edit action items + follow-up email
+router.patch('/:id/extraction', requireAuth, (req, res) => {
+  const { action_items, follow_up_email } = req.body;
+
+  if (!Array.isArray(action_items)) {
+    return res.status(400).json({ error: 'action_items must be an array' });
+  }
+  for (let i = 0; i < action_items.length; i++) {
+    const item = action_items[i];
+    if (!item || typeof item.task !== 'string' || item.task.trim().length === 0) {
+      return res.status(400).json({ error: `action_items[${i}].task is required` });
+    }
+    if (typeof item.owner !== 'string') item.owner = '';
+    if (typeof item.deadline !== 'string') item.deadline = '';
+  }
+  if (typeof follow_up_email !== 'string') {
+    return res.status(400).json({ error: 'follow_up_email must be a string' });
+  }
+
+  const payload = JSON.stringify({ action_items, follow_up_email });
+
+  const result = db.prepare(
+    "UPDATE meetings SET action_items = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?"
+  ).run(payload, req.params.id, req.session.userId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Meeting not found' });
+  }
+  res.json({ ok: true });
+});
+
 // DELETE /api/meetings/:id — delete a meeting (only if owned by user)
 router.delete('/:id', requireAuth, (req, res) => {
   const result = db.prepare(

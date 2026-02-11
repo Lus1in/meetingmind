@@ -126,6 +126,8 @@ const notesInput = document.getElementById('notes-input');
 const resultsDiv = document.getElementById('results');
 
 let lastExtracted = null;
+let currentMeetingId = null;
+let originalTranscript = null;
 
 extractBtn.addEventListener('click', async () => {
   const notes = notesInput.value.trim();
@@ -165,40 +167,114 @@ extractBtn.addEventListener('click', async () => {
   }
 });
 
-// ---- Render Results ----
+// ---- Render Results (editable before save) ----
 function renderResults(data) {
   const tbody = document.getElementById('action-items-body');
+  const table = tbody.closest('table');
   tbody.innerHTML = '';
 
-  data.action_items.forEach(item => {
-    const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(item.task)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.deadline)}</td>`;
-    tbody.appendChild(tr);
-  });
-
-  document.getElementById('email-content').textContent = data.follow_up_email;
-
-  // Set up email buttons for extracted follow-up
-  const emailActions = document.getElementById('extract-email-actions');
-  if (data.follow_up_email) {
-    const subject = encodeURIComponent('Meeting follow-up');
-    const body = encodeURIComponent(data.follow_up_email);
-    document.getElementById('extract-gmail-btn').href =
-      `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
-    document.getElementById('extract-outlook-btn').href =
-      `https://outlook.live.com/mail/0/deeplink/compose?subject=${subject}&body=${body}`;
-    emailActions.style.display = 'flex';
-  } else {
-    emailActions.style.display = 'none';
+  // Add delete column header if not present
+  const thead = table.querySelector('thead tr');
+  if (!thead.querySelector('.action-col')) {
+    const th = document.createElement('th');
+    th.className = 'action-col';
+    th.style.width = '40px';
+    thead.appendChild(th);
   }
+
+  data.action_items.forEach(item => {
+    tbody.appendChild(createEditableRow(item, 'extract'));
+  });
+  table.classList.add('editable');
+
+  // Add item button
+  let addBtn = document.getElementById('add-extract-item-btn');
+  if (!addBtn) {
+    addBtn = document.createElement('button');
+    addBtn.id = 'add-extract-item-btn';
+    addBtn.className = 'btn btn-secondary btn-small add-item-btn';
+    addBtn.textContent = '+ Add item';
+    table.after(addBtn);
+  }
+  addBtn.style.display = 'inline-block';
+
+  // Follow-up email as editable textarea
+  const emailContainer = document.getElementById('email-content');
+  emailContainer.innerHTML = '';
+  const emailTextarea = document.createElement('textarea');
+  emailTextarea.id = 'extract-email-textarea';
+  emailTextarea.value = data.follow_up_email || '';
+  emailTextarea.style.cssText = 'width:100%;min-height:120px;padding:12px;border:1px solid #d0d0d0;border-radius:6px;font-size:0.9rem;font-family:inherit;line-height:1.7;resize:vertical;box-sizing:border-box;';
+  emailContainer.appendChild(emailTextarea);
+
+  // Update email buttons
+  updateExtractEmailLinks(data.follow_up_email || '');
+  const emailActions = document.getElementById('extract-email-actions');
+  emailActions.style.display = data.follow_up_email ? 'flex' : 'none';
 
   resultsDiv.style.display = 'block';
   resultsDiv.scrollIntoView({ behavior: 'smooth' });
 }
 
+function createEditableRow(item, prefix) {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `<td><input type="text" class="${prefix}-task"></td>` +
+    `<td><input type="text" class="${prefix}-owner"></td>` +
+    `<td><input type="text" class="${prefix}-deadline"></td>` +
+    `<td><button class="delete-row-btn" title="Remove">&times;</button></td>`;
+  tr.querySelector(`.${prefix}-task`).value = item.task || '';
+  tr.querySelector(`.${prefix}-owner`).value = item.owner || '';
+  tr.querySelector(`.${prefix}-deadline`).value = item.deadline || '';
+  return tr;
+}
+
+function updateExtractEmailLinks(emailText) {
+  const subject = encodeURIComponent('Meeting follow-up');
+  const body = encodeURIComponent(emailText);
+  document.getElementById('extract-gmail-btn').href =
+    `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
+  document.getElementById('extract-outlook-btn').href =
+    `https://outlook.live.com/mail/0/deeplink/compose?subject=${subject}&body=${body}`;
+}
+
+// Sync lastExtracted from current extract-result inputs
+function syncExtractedFromInputs() {
+  const rows = document.querySelectorAll('#action-items-body tr');
+  const items = [];
+  rows.forEach(tr => {
+    const task = tr.querySelector('.extract-task');
+    if (task && task.value.trim()) {
+      items.push({
+        task: task.value.trim(),
+        owner: (tr.querySelector('.extract-owner') || {}).value || '',
+        deadline: (tr.querySelector('.extract-deadline') || {}).value || ''
+      });
+    }
+  });
+  const emailTa = document.getElementById('extract-email-textarea');
+  if (lastExtracted) {
+    lastExtracted.action_items = items;
+    lastExtracted.follow_up_email = emailTa ? emailTa.value : '';
+  }
+}
+
+// Event delegation for extract result table
+document.getElementById('action-items-body').addEventListener('click', (e) => {
+  if (e.target.classList.contains('delete-row-btn')) {
+    e.target.closest('tr').remove();
+  }
+});
+document.addEventListener('click', (e) => {
+  if (e.target.id === 'add-extract-item-btn') {
+    const tbody = document.getElementById('action-items-body');
+    tbody.appendChild(createEditableRow({ task: '', owner: '', deadline: '' }, 'extract'));
+  }
+});
+
 // ---- Copy Email ----
 document.getElementById('copy-email-btn').addEventListener('click', () => {
-  const text = document.getElementById('email-content').textContent;
+  const textarea = document.getElementById('extract-email-textarea');
+  const text = textarea ? textarea.value : document.getElementById('email-content').textContent;
   navigator.clipboard.writeText(text).then(() => {
     const btn = document.getElementById('copy-email-btn');
     btn.textContent = 'Copied!';
@@ -210,6 +286,8 @@ document.getElementById('copy-email-btn').addEventListener('click', () => {
 document.getElementById('save-btn').addEventListener('click', async () => {
   const notes = notesInput.value.trim();
   if (!notes || !lastExtracted) return;
+
+  syncExtractedFromInputs();
 
   const res = await fetch('/api/meetings', {
     method: 'POST',
@@ -266,12 +344,12 @@ async function loadMeetings() {
       : m.raw_notes;
 
     const hasActions = m.action_items.action_items && m.action_items.action_items.length > 0;
+    const followUp = (m.action_items && m.action_items.follow_up_email) || '';
     let actionsHtml = '';
-    if (hasActions) {
-      const itemsRows = m.action_items.action_items.map(item =>
+    if (hasActions || followUp) {
+      const itemsRows = (m.action_items.action_items || []).map(item =>
         `<tr><td>${escapeHtml(item.task)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.deadline)}</td></tr>`
       ).join('');
-      const followUp = m.action_items.follow_up_email || '';
       const emailSubject = encodeURIComponent(`Meeting follow-up \u2014 ${title}`);
       const emailBody = encodeURIComponent(followUp);
       const emailBtns = followUp ? `
@@ -282,12 +360,20 @@ async function loadMeetings() {
       actionsHtml = `
         <details>
           <summary>View action items & email</summary>
-          <table class="action-items-table" style="margin-top:12px">
-            <thead><tr><th>Task</th><th>Owner</th><th>Deadline</th></tr></thead>
-            <tbody>${itemsRows}</tbody>
-          </table>
-          <h4 style="margin:12px 0 8px">Follow-up Email</h4>
-          <div class="email-box">${escapeHtml(followUp)}</div>${emailBtns}
+          <div class="past-meeting-extraction" data-meeting-id="${m.id}">
+            <div class="extraction-view-mode">
+              <table class="action-items-table" style="margin-top:12px">
+                <thead><tr><th>Task</th><th>Owner</th><th>Deadline</th></tr></thead>
+                <tbody>${itemsRows}</tbody>
+              </table>
+              <h4 style="margin:12px 0 8px">Follow-up Email</h4>
+              <div class="email-box">${escapeHtml(followUp)}</div>${emailBtns}
+              <div style="margin-top:12px">
+                <button class="btn btn-secondary btn-small edit-extraction-btn" data-meeting-id="${m.id}">Edit</button>
+              </div>
+            </div>
+            <div class="extraction-edit-mode" style="display:none"></div>
+          </div>
         </details>
       `;
     }
@@ -320,6 +406,9 @@ async function viewMeeting(id, highlight) {
   }
 
   const meeting = await res.json();
+  currentMeetingId = meeting.id;
+  originalTranscript = meeting.raw_notes;
+
   const date = new Date(meeting.created_at + 'Z').toLocaleDateString('en-US', {
     weekday: 'long', month: 'long', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit'
   });
@@ -327,7 +416,15 @@ async function viewMeeting(id, highlight) {
   const title = meeting.title || 'Untitled Meeting';
   document.getElementById('detail-title').textContent = title;
   document.getElementById('detail-date').textContent = date;
-  document.getElementById('detail-transcript').textContent = meeting.raw_notes;
+
+  // Transcript: show read-only, hide edit textarea
+  const transcriptEl = document.getElementById('detail-transcript');
+  transcriptEl.textContent = meeting.raw_notes;
+  transcriptEl.style.display = 'block';
+  document.getElementById('detail-transcript-edit').style.display = 'none';
+  document.getElementById('edit-transcript-btn').style.display = 'inline-block';
+  document.getElementById('edit-transcript-actions').style.display = 'none';
+  document.getElementById('transcript-edit-status').textContent = '';
 
   // Set up export links
   const subject = encodeURIComponent(`Meeting Notes: ${title}`);
@@ -337,6 +434,9 @@ async function viewMeeting(id, highlight) {
   document.getElementById('email-outlook-btn').href =
     `https://outlook.live.com/mail/0/deeplink/compose?subject=${subject}&body=${body}`;
 
+  // Render action items + follow-up email in detail view
+  renderDetailExtraction(meeting.action_items);
+
   // Show detail, hide list
   const detailEl = document.getElementById('meeting-detail');
   detailEl.style.display = 'block';
@@ -345,15 +445,140 @@ async function viewMeeting(id, highlight) {
   // Scroll to transcript and briefly highlight it after upload
   if (highlight) {
     detailEl.scrollIntoView({ behavior: 'smooth' });
-    const transcriptEl = document.getElementById('detail-transcript');
     transcriptEl.classList.add('highlight');
     setTimeout(() => transcriptEl.classList.remove('highlight'), 2000);
   }
 }
 
+// Render action items in the meeting detail view
+function renderDetailExtraction(actionData) {
+  const section = document.getElementById('detail-extraction');
+  const content = document.getElementById('detail-extraction-content');
+  const items = (actionData && actionData.action_items) || [];
+  const followUp = (actionData && actionData.follow_up_email) || '';
+
+  if (items.length === 0 && !followUp) {
+    section.style.display = 'none';
+    return;
+  }
+
+  const itemsRows = items.map(item =>
+    `<tr><td>${escapeHtml(item.task)}</td><td>${escapeHtml(item.owner)}</td><td>${escapeHtml(item.deadline)}</td></tr>`
+  ).join('');
+
+  const emailSubject = encodeURIComponent('Meeting follow-up');
+  const emailBody = encodeURIComponent(followUp);
+  const emailBtns = followUp ? `
+    <div class="export-actions" style="margin-top:8px">
+      <a class="btn btn-secondary btn-small" href="https://mail.google.com/mail/?view=cm&su=${emailSubject}&body=${emailBody}" target="_blank">Email (Gmail)</a>
+      <a class="btn btn-secondary btn-small" href="https://outlook.live.com/mail/0/deeplink/compose?subject=${emailSubject}&body=${emailBody}" target="_blank">Email (Outlook)</a>
+    </div>` : '';
+
+  content.innerHTML = `
+    <div class="detail-extraction-wrapper" data-meeting-id="${currentMeetingId}">
+      <div class="extraction-view-mode">
+        <table class="action-items-table" style="margin-top:12px">
+          <thead><tr><th>Task</th><th>Owner</th><th>Deadline</th></tr></thead>
+          <tbody>${itemsRows}</tbody>
+        </table>
+        <h4 style="margin:12px 0 8px">Follow-up Email</h4>
+        <div class="email-box">${escapeHtml(followUp)}</div>${emailBtns}
+        <div style="margin-top:12px">
+          <button class="btn btn-secondary btn-small edit-extraction-btn" data-meeting-id="${currentMeetingId}">Edit</button>
+        </div>
+      </div>
+      <div class="extraction-edit-mode" style="display:none"></div>
+    </div>
+  `;
+  section.style.display = 'block';
+}
+
 document.getElementById('back-to-list').addEventListener('click', () => {
   document.getElementById('meeting-detail').style.display = 'none';
   document.getElementById('past-meetings-section').style.display = 'block';
+});
+
+// ---- Transcript Editing ----
+document.getElementById('edit-transcript-btn').addEventListener('click', () => {
+  const transcriptEl = document.getElementById('detail-transcript');
+  const editEl = document.getElementById('detail-transcript-edit');
+  originalTranscript = transcriptEl.textContent;
+  editEl.value = originalTranscript;
+  transcriptEl.style.display = 'none';
+  editEl.style.display = 'block';
+  editEl.focus();
+  document.getElementById('edit-transcript-btn').style.display = 'none';
+  document.getElementById('edit-transcript-actions').style.display = 'flex';
+});
+
+document.getElementById('cancel-transcript-btn').addEventListener('click', () => {
+  document.getElementById('detail-transcript').style.display = 'block';
+  document.getElementById('detail-transcript-edit').style.display = 'none';
+  document.getElementById('edit-transcript-btn').style.display = 'inline-block';
+  document.getElementById('edit-transcript-actions').style.display = 'none';
+  document.getElementById('transcript-edit-status').textContent = '';
+});
+
+document.getElementById('save-transcript-btn').addEventListener('click', async () => {
+  const editEl = document.getElementById('detail-transcript-edit');
+  const statusEl = document.getElementById('transcript-edit-status');
+  const saveBtn = document.getElementById('save-transcript-btn');
+  const newText = editEl.value;
+
+  if (newText.length > 200000) {
+    statusEl.textContent = 'Too long (max 200,000 characters)';
+    statusEl.className = 'edit-status error';
+    return;
+  }
+
+  saveBtn.disabled = true;
+  statusEl.textContent = 'Saving\u2026';
+  statusEl.className = 'edit-status saving';
+
+  try {
+    const res = await fetch(`/api/meetings/${currentMeetingId}/transcript`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript: newText })
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      statusEl.textContent = data.error || 'Save failed';
+      statusEl.className = 'edit-status error';
+      return;
+    }
+
+    // Exit edit mode
+    originalTranscript = newText;
+    const transcriptEl = document.getElementById('detail-transcript');
+    transcriptEl.textContent = newText;
+    transcriptEl.style.display = 'block';
+    editEl.style.display = 'none';
+    document.getElementById('edit-transcript-btn').style.display = 'inline-block';
+    document.getElementById('edit-transcript-actions').style.display = 'none';
+
+    // Update email export links
+    const title = document.getElementById('detail-title').textContent;
+    const date = document.getElementById('detail-date').textContent;
+    const subject = encodeURIComponent(`Meeting Notes: ${title}`);
+    const body = encodeURIComponent(`${title}\n${date}\n\n${newText}`);
+    document.getElementById('email-gmail-btn').href =
+      `https://mail.google.com/mail/?view=cm&su=${subject}&body=${body}`;
+    document.getElementById('email-outlook-btn').href =
+      `https://outlook.live.com/mail/0/deeplink/compose?subject=${subject}&body=${body}`;
+
+    statusEl.textContent = 'Saved!';
+    statusEl.className = 'edit-status saved';
+    setTimeout(() => { statusEl.textContent = ''; }, 2000);
+
+    loadMeetings();
+  } catch (err) {
+    statusEl.textContent = 'Something went wrong';
+    statusEl.className = 'edit-status error';
+  } finally {
+    saveBtn.disabled = false;
+  }
 });
 
 // ---- Copy Transcript ----
@@ -382,6 +607,147 @@ document.getElementById('use-for-extract-btn').addEventListener('click', () => {
   notesInput.scrollIntoView({ behavior: 'smooth' });
   notesInput.focus();
 });
+
+// ---- Extraction Editing (past meetings + detail view) ----
+document.addEventListener('click', (e) => {
+  const target = e.target;
+
+  // Edit button
+  if (target.classList.contains('edit-extraction-btn')) {
+    const container = target.closest('.past-meeting-extraction') || target.closest('.detail-extraction-wrapper');
+    if (container) enterExtractionEditMode(container, target.dataset.meetingId);
+    return;
+  }
+
+  // Save button
+  if (target.classList.contains('save-extraction-btn')) {
+    const container = target.closest('.past-meeting-extraction') || target.closest('.detail-extraction-wrapper');
+    if (container) saveExtractionEdit(container, target.dataset.meetingId);
+    return;
+  }
+
+  // Cancel button
+  if (target.classList.contains('cancel-extraction-btn')) {
+    const container = target.closest('.past-meeting-extraction') || target.closest('.detail-extraction-wrapper');
+    if (container) cancelExtractionEdit(container);
+    return;
+  }
+
+  // Delete row in past meeting / detail edit
+  if (target.classList.contains('pm-delete-row-btn')) {
+    target.closest('tr').remove();
+    return;
+  }
+
+  // Add item in past meeting / detail edit
+  if (target.classList.contains('pm-add-item-btn')) {
+    const tbody = target.closest('.extraction-edit-mode').querySelector('tbody');
+    tbody.appendChild(createEditableRow({ task: '', owner: '', deadline: '' }, 'pm'));
+    return;
+  }
+});
+
+function enterExtractionEditMode(container, meetingId) {
+  const viewMode = container.querySelector('.extraction-view-mode');
+  const editMode = container.querySelector('.extraction-edit-mode');
+
+  // Parse current data from view mode table
+  const rows = viewMode.querySelectorAll('tbody tr');
+  const items = [];
+  rows.forEach(tr => {
+    const cells = tr.querySelectorAll('td');
+    items.push({
+      task: cells[0] ? cells[0].textContent : '',
+      owner: cells[1] ? cells[1].textContent : '',
+      deadline: cells[2] ? cells[2].textContent : ''
+    });
+  });
+
+  const emailBox = viewMode.querySelector('.email-box');
+  const emailText = emailBox ? emailBox.textContent : '';
+
+  editMode.innerHTML = `
+    <table class="action-items-table editable" style="margin-top:12px">
+      <thead><tr><th>Task</th><th>Owner</th><th>Deadline</th><th style="width:40px"></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button class="btn btn-secondary btn-small add-item-btn pm-add-item-btn">+ Add item</button>
+    <h4 style="margin:12px 0 8px">Follow-up Email</h4>
+    <div class="editable-email">
+      <textarea class="pm-email-textarea"></textarea>
+    </div>
+    <div class="extraction-edit-actions">
+      <button class="btn btn-primary btn-small save-extraction-btn" data-meeting-id="${meetingId}">Save</button>
+      <button class="btn btn-secondary btn-small cancel-extraction-btn">Cancel</button>
+      <span class="edit-status pm-edit-status"></span>
+    </div>
+  `;
+
+  // Populate rows safely (avoid attribute injection)
+  const tbody = editMode.querySelector('tbody');
+  items.forEach(item => tbody.appendChild(createEditableRow(item, 'pm')));
+  editMode.querySelector('.pm-email-textarea').value = emailText;
+
+  viewMode.style.display = 'none';
+  editMode.style.display = 'block';
+}
+
+function cancelExtractionEdit(container) {
+  container.querySelector('.extraction-view-mode').style.display = 'block';
+  container.querySelector('.extraction-edit-mode').style.display = 'none';
+}
+
+async function saveExtractionEdit(container, meetingId) {
+  const editMode = container.querySelector('.extraction-edit-mode');
+  const statusEl = editMode.querySelector('.pm-edit-status');
+  const saveBtn = editMode.querySelector('.save-extraction-btn');
+
+  const rows = editMode.querySelectorAll('tbody tr');
+  const items = [];
+  rows.forEach(tr => {
+    const task = tr.querySelector('.pm-task');
+    if (task && task.value.trim()) {
+      items.push({
+        task: task.value.trim(),
+        owner: (tr.querySelector('.pm-owner') || {}).value || '',
+        deadline: (tr.querySelector('.pm-deadline') || {}).value || ''
+      });
+    }
+  });
+
+  const emailTa = editMode.querySelector('.pm-email-textarea');
+  const followUp = emailTa ? emailTa.value : '';
+
+  saveBtn.disabled = true;
+  statusEl.textContent = 'Saving\u2026';
+  statusEl.className = 'edit-status pm-edit-status saving';
+
+  try {
+    const res = await fetch(`/api/meetings/${meetingId}/extraction`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_items: items, follow_up_email: followUp })
+    });
+
+    if (!res.ok) {
+      const data = await res.json();
+      statusEl.textContent = data.error || 'Save failed';
+      statusEl.className = 'edit-status pm-edit-status error';
+      return;
+    }
+
+    // Refresh meetings list and re-render detail view if viewing this meeting
+    await loadMeetings();
+    if (currentMeetingId === Number(meetingId)) {
+      viewMeeting(currentMeetingId);
+    }
+  } catch (err) {
+    statusEl.textContent = 'Something went wrong';
+    statusEl.className = 'edit-status pm-edit-status error';
+  } finally {
+    saveBtn.disabled = false;
+  }
+}
 
 // ---- Delete Meeting ----
 async function deleteMeeting(id) {

@@ -711,3 +711,95 @@ a:hover { text-decoration: underline; }
 .status-past_due { color: #e67e22; font-weight: 600; }
 .status-canceled { color: #e63946; font-weight: 600; }
 .status-none { color: #888; }
+
+/* ---- Editing Modes ---- */
+.transcript-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.transcript-header .transcript-label { margin-bottom: 0; }
+
+.detail-transcript-edit {
+  width: 100%;
+  background: #fff;
+  border: 2px solid #4361ee;
+  border-radius: 6px;
+  padding: 20px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  font-family: inherit;
+  max-height: 60vh;
+  min-height: 200px;
+  resize: vertical;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+.detail-transcript-edit:focus { outline: none; }
+
+.edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.edit-status { font-size: 0.85rem; color: #888; margin-left: 8px; }
+.edit-status.saving { color: #e67e22; }
+.edit-status.saved { color: #2ecc71; }
+.edit-status.error { color: #e63946; }
+
+.action-items-table.editable td { padding: 4px 6px; }
+.action-items-table.editable input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  font-family: inherit;
+  box-sizing: border-box;
+}
+.action-items-table.editable input:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 2px rgba(67, 97, 238, 0.1);
+}
+.action-items-table .delete-row-btn {
+  background: none;
+  border: none;
+  color: #e63946;
+  cursor: pointer;
+  font-size: 1.1rem;
+  padding: 4px 8px;
+  opacity: 0.6;
+}
+.action-items-table .delete-row-btn:hover { opacity: 1; }
+
+.add-item-btn { margin-top: 8px; font-size: 0.85rem; }
+
+.editable-email textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #d0d0d0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  line-height: 1.7;
+  resize: vertical;
+  box-sizing: border-box;
+}
+.editable-email textarea:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 3px rgba(67, 97, 238, 0.1);
+}
+
+.extraction-edit-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}

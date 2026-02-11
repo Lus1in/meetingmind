@@ -48,6 +48,9 @@ const meetingCols = db.prepare("PRAGMA table_info(meetings)").all().map(c => c.n
 if (!meetingCols.includes('title')) {
   db.exec("ALTER TABLE meetings ADD COLUMN title TEXT");
 }
+if (!meetingCols.includes('updated_at')) {
+  db.exec("ALTER TABLE meetings ADD COLUMN updated_at DATETIME");
+}
 
 // Migrations for existing databases — users
 const cols = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
