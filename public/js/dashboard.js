@@ -207,13 +207,23 @@ function renderResults(data) {
   emailTextarea.style.cssText = 'width:100%;min-height:120px;padding:12px;border:1px solid #d0d0d0;border-radius:6px;font-size:0.9rem;font-family:inherit;line-height:1.7;resize:vertical;box-sizing:border-box;';
   emailContainer.appendChild(emailTextarea);
 
-  // Update email buttons
+  // Update email buttons (always visible so user can type an email and use them)
   updateExtractEmailLinks(data.follow_up_email || '');
-  const emailActions = document.getElementById('extract-email-actions');
-  emailActions.style.display = data.follow_up_email ? 'flex' : 'none';
+  document.getElementById('extract-email-actions').style.display = 'flex';
+
+  // Live sync: any edit to inputs/textarea refreshes lastExtracted + email links
+  emailTextarea.addEventListener('input', liveSync);
+  tbody.addEventListener('input', liveSync);
 
   resultsDiv.style.display = 'block';
   resultsDiv.scrollIntoView({ behavior: 'smooth' });
+}
+
+function liveSync() {
+  syncExtractedFromInputs();
+  if (lastExtracted) {
+    updateExtractEmailLinks(lastExtracted.follow_up_email);
+  }
 }
 
 function createEditableRow(item, prefix) {
@@ -262,6 +272,7 @@ function syncExtractedFromInputs() {
 document.getElementById('action-items-body').addEventListener('click', (e) => {
   if (e.target.classList.contains('delete-row-btn')) {
     e.target.closest('tr').remove();
+    liveSync();
   }
 });
 document.addEventListener('click', (e) => {
