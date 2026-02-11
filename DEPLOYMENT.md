@@ -331,6 +331,7 @@ stripe listen --forward-to localhost:3000/api/billing/webhook
 | Email | Resend free tier: 100 emails/day | Enough for beta | Upgrade Resend plan for launch |
 | Pricing page | References `/pricing.html` in upgrade CTA | Page must exist or link 404s | Create pricing page before beta launch |
 | Apple OAuth | Requires paid Apple Developer account | Can skip for staging | Configure when ready for App Store |
+| AI JSON parsing | Model may return markdown fences or trailing commas | `safeJsonParse` strips fences/commas automatically | Stable — no action needed |
 
 ## Rate Limits (in-memory, resets on restart)
 

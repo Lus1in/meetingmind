@@ -6,6 +6,7 @@ const os = require('os');
 const db = require('../database');
 const requireAuth = require('../middleware/auth');
 const rateLimit = require('../middleware/rateLimit');
+const { safeJsonParse } = require('../lib/safe-json');
 
 const extractLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }); // 20 per 15min
 
@@ -55,22 +56,20 @@ if (process.env.MOCK_MODE !== 'true') {
   anthropic = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
 }
 
-const EXTRACT_PROMPT = `You are a meeting notes assistant. Analyze the meeting notes below and extract:
+const EXTRACT_PROMPT = `You are a meeting notes assistant. Analyze the meeting notes and extract action items and a follow-up email.
 
-1. **Action items** — each with:
-   - "task": what needs to be done
-   - "owner": who is responsible (use "Unassigned" if unclear)
-   - "deadline": when it's due (use "Not specified" if unclear)
+CRITICAL: Return ONLY a raw JSON object. No markdown fences, no backticks, no explanation text before or after. Do not wrap in \`\`\`json. Just the JSON object.
 
-2. **A follow-up email draft** — a short, professional email summarizing the meeting and listing the action items. Address it generically (e.g. "Hi team,").
+Required JSON schema:
+{"action_items":[{"task":"...","owner":"...","deadline":"..."}],"follow_up_email":"..."}
 
-Respond ONLY with valid JSON in this exact format, no other text:
-{
-  "action_items": [
-    { "task": "...", "owner": "...", "deadline": "..." }
-  ],
-  "follow_up_email": "..."
-}
+Rules:
+- "task": what needs to be done
+- "owner": who is responsible (use "Unassigned" if unclear)
+- "deadline": when it's due (use "Not specified" if unclear)
+- "follow_up_email": short professional summary email addressed to "Hi team,"
+- If no action items found, return: {"action_items":[],"follow_up_email":""}
+- No trailing commas in arrays or objects
 
 Meeting notes:
 `;
@@ -339,7 +338,15 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
           { role: 'user', content: EXTRACT_PROMPT + notes }
         ]
       });
-      result = JSON.parse(message.content[0].text);
+
+      const rawText = message.content[0].text;
+      try {
+        result = safeJsonParse(rawText);
+      } catch (parseErr) {
+        console.error('[extract] JSON parse failed:', parseErr.message);
+        console.error('[extract] Raw model output (first 800 chars):', rawText.slice(0, 800));
+        return res.status(500).json({ error: 'Failed to parse AI response' });
+      }
     }
 
     // Increment usage only on success
@@ -347,12 +354,7 @@ router.post('/extract', extractLimiter, requireAuth, async (req, res) => {
 
     res.json(result);
   } catch (err) {
-    console.error('Extract error:', err.message);
-
-    if (err instanceof SyntaxError) {
-      return res.status(500).json({ error: 'Failed to parse AI response' });
-    }
-
+    console.error('[extract] Error:', err.message);
     res.status(500).json({ error: 'Failed to extract action items' });
   }
 });
