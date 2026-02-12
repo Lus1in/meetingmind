@@ -23,6 +23,11 @@ async function checkAuth() {
     badge.style.display = 'inline-block';
   }
 
+  // Show admin link if user is admin
+  if (currentUser.isAdmin) {
+    document.getElementById('admin-link').style.display = 'inline-block';
+  }
+
   // Show dev banner when mock mode is active
   if (currentUser.mock_mode) {
     let banner = document.getElementById('mock-banner');

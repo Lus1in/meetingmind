@@ -79,13 +79,17 @@ router.get('/me', (req, res) => {
     req.session.destroy(() => {});
     return res.status(401).json({ error: 'Not logged in' });
   }
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const isAdmin = !!(adminEmail && user.email.toLowerCase() === adminEmail.toLowerCase());
+
   res.json({
     id: user.id,
     email: user.email,
     plan: user.plan,
     is_lifetime: user.is_lifetime === 1,
     subscription_status: user.subscription_status,
-    mock_mode: process.env.MOCK_MODE === 'true'
+    mock_mode: process.env.MOCK_MODE === 'true',
+    isAdmin
   });
 });
 
