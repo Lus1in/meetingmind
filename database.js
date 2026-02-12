@@ -91,6 +91,24 @@ db.exec(`
   );
 `);
 
+// Feedback table
+db.exec(`
+  CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    user_email TEXT,
+    category TEXT NOT NULL CHECK(category IN ('feature','bug','other')),
+    severity TEXT NOT NULL CHECK(severity IN ('low','medium','high')),
+    message TEXT NOT NULL,
+    screenshot_path TEXT,
+    user_agent TEXT,
+    page_url TEXT,
+    status TEXT DEFAULT 'new' CHECK(status IN ('new','reviewed','closed')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+  );
+`);
+
 // Constraints & triggers
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_stripe_customer

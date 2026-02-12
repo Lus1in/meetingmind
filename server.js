@@ -46,6 +46,7 @@ const oauthRoutes = require('./routes/oauth');
 const meetingRoutes = require('./routes/meetings');
 const adminRoutes = require('./routes/admin');
 const billingRoutes = require('./routes/billing');
+const feedbackRoutes = require('./routes/feedback');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -94,6 +95,14 @@ app.use('/api/oauth', oauthRoutes);
 app.use('/api/meetings', meetingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/billing', billingRoutes);
+app.use('/api/feedback', feedbackRoutes);
+
+// Admin feedback page — served behind auth + admin check
+const requireAuth = require('./middleware/auth');
+const requireAdmin = require('./middleware/requireAdmin');
+app.get('/admin/feedback', requireAuth, requireAdmin, (_req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'admin-feedback.html'));
+});
 
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT} [${isProd ? 'production' : 'development'}]`);

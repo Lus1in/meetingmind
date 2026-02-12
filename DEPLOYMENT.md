@@ -15,6 +15,7 @@ Set all of these in your Render dashboard under **Environment > Environment Vari
 | `APP_URL` | `https://meetingmind.onrender.com` | Full URL, no trailing slash. Used for OAuth callbacks + reset emails |
 | `MOCK_MODE` | `false` | **Must be `false` for beta.** Controls AI + transcription |
 | `DATABASE_PATH` | `/var/data/data.db` | Persistent disk path on Render. Local: leave unset (defaults to `./data.db`) |
+| `ADMIN_EMAIL` | `you@example.com` | Your login email. Grants access to `/admin/feedback` inbox. |
 
 ### AI / Transcription
 
@@ -332,6 +333,7 @@ stripe listen --forward-to localhost:3000/api/billing/webhook
 | Pricing page | References `/pricing.html` in upgrade CTA | Page must exist or link 404s | Create pricing page before beta launch |
 | Apple OAuth | Requires paid Apple Developer account | Can skip for staging | Configure when ready for App Store |
 | AI JSON parsing | Model may return markdown fences or trailing commas | `safeJsonParse` strips fences/commas automatically | Stable — no action needed |
+| Feedback screenshots | Stored in `uploads/feedback/`; ephemeral on Render free tier | Screenshots lost on redeploy without persistent disk | Mount persistent disk or use S3 for launch |
 
 ## Rate Limits (in-memory, resets on restart)
 

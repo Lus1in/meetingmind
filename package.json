@@ -23,5 +23,8 @@
     "multer": "^2.0.2",
     "openai": "^6.19.0",
     "stripe": "^20.3.1"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2"
   }
 }

@@ -4,3 +4,7 @@ data.db-shm
 data.db-wal
 .env
 uploads/
+nul
+test/*.db
+test/*.db-wal
+test/*.db-shm
