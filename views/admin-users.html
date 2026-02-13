@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Users Admin — MeetingMind</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .admin-container { max-width: 1100px; margin: 0 auto; padding: 24px 20px; }
+    .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .admin-header h1 { font-size: 1.5rem; margin: 0; }
+    .user-count { font-size: 0.85rem; color: #888; }
+    .admin-nav { display: flex; gap: 8px; margin-bottom: 20px; }
+    .admin-nav a { font-size: 0.85rem; }
+    .users-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .users-table th {
+      text-align: left; padding: 10px 12px; border-bottom: 2px solid #e0e0e0;
+      font-weight: 600; color: #555; font-size: 0.8rem; text-transform: uppercase;
+      letter-spacing: 0.3px; white-space: nowrap;
+    }
+    .users-table td {
+      padding: 10px 12px; border-bottom: 1px solid #f0f0f0; color: #333;
+    }
+    .users-table tr:hover td { background: #fafbff; }
+    .badge-online, .badge-offline {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-online { background: #e6f4ea; color: #137333; }
+    .badge-offline { background: #f1f3f4; color: #999; }
+    .badge-plan {
+      display: inline-block; padding: 2px 8px; border-radius: 10px;
+      font-size: 0.72rem; font-weight: 600; text-transform: uppercase;
+    }
+    .badge-plan.free { background: #f1f3f4; color: #5f6368; }
+    .badge-plan.ltd, .badge-plan.fltd { background: #e8f0fe; color: #1a73e8; }
+    .badge-plan.sub_basic, .badge-plan.sub_pro { background: #fef7e0; color: #b06000; }
+    .lifetime-yes { color: #137333; font-weight: 600; }
+    .lifetime-no { color: #999; }
+    .users-empty { text-align: center; color: #888; padding: 40px; font-size: 0.95rem; }
+  </style>
+</head>
+<body>
+  <div class="navbar">
+    <a href="/dashboard.html" class="logo">MeetingMind</a>
+    <nav>
+      <span style="font-size:0.85rem;color:#888">Admin</span>
+      <a href="/admin/feedback" class="btn btn-secondary btn-small">Feedback</a>
+      <a href="/dashboard.html" class="btn btn-secondary btn-small">Dashboard</a>
+    </nav>
+  </div>
+
+  <div class="admin-container">
+    <div class="admin-header">
+      <h1>Users</h1>
+      <span class="user-count" id="user-count"></span>
+    </div>
+
+    <table class="users-table">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Plan</th>
+          <th>Lifetime</th>
+          <th>Sub Status</th>
+          <th>Created</th>
+          <th>Last Seen</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="users-body"></tbody>
+    </table>
+    <div id="users-empty" class="users-empty" style="display:none">No users found.</div>
+  </div>
+
+  <script>
+    var tbody = document.getElementById('users-body');
+    var countEl = document.getElementById('user-count');
+    var emptyEl = document.getElementById('users-empty');
+
+    async function loadUsers() {
+      var res = await fetch('/api/admin/users');
+      if (res.status === 403 || res.status === 401) {
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = 'Access denied.';
+        return;
+      }
+      if (!res.ok) {
+        emptyEl.style.display = 'block';
+        emptyEl.textContent = 'Failed to load users.';
+        return;
+      }
+
+      var users = await res.json();
+      countEl.textContent = users.length + ' user' + (users.length !== 1 ? 's' : '');
+
+      if (users.length === 0) {
+        emptyEl.style.display = 'block';
+        return;
+      }
+
+      tbody.innerHTML = users.map(function(u) {
+        var created = u.created_at ? new Date(u.created_at + 'Z').toLocaleDateString() : '—';
+        var lastSeen = u.last_seen_at ? timeAgo(new Date(u.last_seen_at + 'Z')) : 'Never';
+        var statusBadge = u.isOnline
+          ? '<span class="badge-online">Online</span>'
+          : '<span class="badge-offline">Offline</span>';
+        var ltBadge = u.is_lifetime
+          ? '<span class="lifetime-yes">Yes</span>'
+          : '<span class="lifetime-no">No</span>';
+
+        return '<tr>' +
+          '<td>' + esc(u.email) + '</td>' +
+          '<td><span class="badge-plan ' + esc(u.plan) + '">' + esc(u.plan) + '</span></td>' +
+          '<td>' + ltBadge + '</td>' +
+          '<td>' + esc(u.subscription_status) + '</td>' +
+          '<td>' + created + '</td>' +
+          '<td>' + lastSeen + '</td>' +
+          '<td>' + statusBadge + '</td>' +
+        '</tr>';
+      }).join('');
+    }
+
+    function timeAgo(date) {
+      var seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (seconds < 60) return 'Just now';
+      if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+      if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+      if (seconds < 2592000) return Math.floor(seconds / 86400) + 'd ago';
+      return date.toLocaleDateString();
+    }
+
+    function esc(text) {
+      var d = document.createElement('div');
+      d.textContent = text || '';
+      return d.innerHTML;
+    }
+
+    loadUsers();
+  </script>
+</body>
+</html>

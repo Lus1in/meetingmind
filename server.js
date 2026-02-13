@@ -47,6 +47,8 @@ const meetingRoutes = require('./routes/meetings');
 const adminRoutes = require('./routes/admin');
 const billingRoutes = require('./routes/billing');
 const feedbackRoutes = require('./routes/feedback');
+const adminUsersRoutes = require('./routes/admin-users');
+const lastSeen = require('./middleware/lastSeen');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -77,6 +79,9 @@ app.use(session({
   }
 }));
 
+// Track last seen for authenticated users
+app.use(lastSeen);
+
 // Health check — safe config flags only, never secrets
 app.get('/api/health', (_req, res) => {
   res.json({
@@ -96,12 +101,16 @@ app.use('/api/meetings', meetingRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/billing', billingRoutes);
 app.use('/api/feedback', feedbackRoutes);
+app.use('/api/admin/users', adminUsersRoutes);
 
 // Admin feedback page — served behind auth + admin check
 const requireAuth = require('./middleware/auth');
 const requireAdmin = require('./middleware/requireAdmin');
 app.get('/admin/feedback', requireAuth, requireAdmin, (_req, res) => {
   res.sendFile(path.join(__dirname, 'views', 'admin-feedback.html'));
+});
+app.get('/admin/users', requireAuth, requireAdmin, (_req, res) => {
+  res.sendFile(path.join(__dirname, 'views', 'admin-users.html'));
 });
 
 app.listen(PORT, () => {

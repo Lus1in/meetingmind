@@ -71,6 +71,9 @@ if (!cols.includes('stripe_subscription_id')) {
 if (!cols.includes('subscription_status')) {
   db.exec("ALTER TABLE users ADD COLUMN subscription_status TEXT NOT NULL DEFAULT 'none'");
 }
+if (!cols.includes('last_seen_at')) {
+  db.exec("ALTER TABLE users ADD COLUMN last_seen_at DATETIME");
+}
 if (!cols.includes('reset_token')) {
   db.exec("ALTER TABLE users ADD COLUMN reset_token TEXT");
 }
