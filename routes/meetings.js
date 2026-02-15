@@ -10,10 +10,11 @@ const { safeJsonParse } = require('../lib/safe-json');
 
 const extractLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20 }); // 20 per 15min
 
-// Multer: store uploads in OS temp dir, max 25MB (used by /transcribe)
+// Multer: store uploads in OS temp dir, max 100MB (used by /transcribe)
+const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100MB
 const upload = multer({
   dest: os.tmpdir(),
-  limits: { fileSize: 25 * 1024 * 1024 }
+  limits: { fileSize: MAX_FILE_SIZE }
 });
 
 // Multer: audio upload with format validation (used by /upload)
@@ -24,7 +25,7 @@ if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 const audioUpload = multer({
   dest: uploadsDir,
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: MAX_FILE_SIZE },
   fileFilter: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (ALLOWED_AUDIO_EXTS.includes(ext)) {
@@ -239,7 +240,7 @@ router.post('/upload', requireAuth, (req, res, next) => {
   audioUpload.single('audio')(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File too large. Maximum size is 25MB.' });
+        return res.status(400).json({ error: 'File too large. Maximum size is 100 MB.', code: 'FILE_TOO_LARGE', maxBytes: MAX_FILE_SIZE });
       }
       return res.status(400).json({ error: err.message || 'Upload failed' });
     }

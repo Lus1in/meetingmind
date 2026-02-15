@@ -22,8 +22,9 @@
   <div class="container dashboard">
     <!-- Upload Audio Section -->
     <h2>Upload Audio</h2>
-    <div class="upload-section">
-      <p class="helper-text">Upload a recording (mp3, wav, or m4a) and we'll transcribe it automatically. The transcript is saved as a new meeting you can review anytime.</p>
+    <div class="upload-section notepad-sheet">
+      <div class="notepad-header">Audio Transcription</div>
+      <p class="helper-text">Upload a recording (mp3, wav, m4a, or webm — up to 100 MB) and we'll transcribe it automatically. MeetingMind extracts decisions, owners, and deadlines — not just a transcript.</p>
       <input type="text" id="upload-title" placeholder="Meeting title (optional)" class="upload-title-input">
       <div class="upload-row">
         <input type="file" id="audio-file" accept=".mp3,.wav,.m4a,.webm">
@@ -32,9 +33,29 @@
       <div class="upload-status" id="upload-status"></div>
     </div>
 
+    <!-- Zoom Import Section -->
+    <div class="upload-section" id="zoom-section" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <h3 style="margin:0">Zoom Meetings</h3>
+        <span id="zoom-status-badge"></span>
+      </div>
+      <div id="zoom-not-connected">
+        <p class="helper-text">Connect your Zoom account to import meeting recordings directly.</p>
+        <a class="btn btn-primary btn-small" id="zoom-connect-btn" href="/api/zoom/connect">Connect Zoom</a>
+      </div>
+      <div id="zoom-connected" style="display:none">
+        <div style="display:flex;gap:8px;margin-bottom:12px">
+          <button class="btn btn-secondary btn-small" id="zoom-refresh-btn">Refresh Meetings</button>
+          <button class="btn btn-danger btn-small" id="zoom-disconnect-btn">Disconnect</button>
+        </div>
+        <div id="zoom-meetings-list"></div>
+      </div>
+    </div>
+
     <!-- Paste Notes Section -->
     <h2>Extract Action Items</h2>
-    <div class="notes-input">
+    <div class="notes-input notepad-sheet">
+      <div class="notepad-header">Meeting Notes</div>
       <p class="helper-text">Paste your transcript or meeting notes below, then click <strong>Extract</strong> to generate action items and a follow-up email.</p>
       <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
       <div class="input-actions">
@@ -115,6 +136,15 @@
       <div id="meetings-list"></div>
     </div>
   </div>
+
+  <footer class="site-footer">
+    <div>&copy; 2026 MeetingMind. All rights reserved.</div>
+    <div class="footer-links">
+      <a href="/pricing.html">Pricing</a>
+      <a href="/blog">Blog</a>
+    </div>
+    <div style="margin-top:10px;font-size:0.8rem;color:#aaa">Coming soon: integrations with Slack, Jira, and other tools.</div>
+  </footer>
 
   <script src="/js/dashboard.js"></script>
   <script src="/js/feedback.js"></script>

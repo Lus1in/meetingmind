@@ -62,6 +62,14 @@ uploadBtn.addEventListener('click', async () => {
     return;
   }
 
+  // Client-side file size check (100 MB)
+  var maxSize = 100 * 1024 * 1024;
+  if (file.size > maxSize) {
+    uploadStatus.textContent = 'File too large. Maximum size is 100 MB.';
+    uploadStatus.className = 'upload-status error';
+    return;
+  }
+
   const title = document.getElementById('upload-title').value.trim();
   const formData = new FormData();
   formData.append('audio', file);
@@ -343,8 +351,8 @@ async function loadMeetings() {
   if (meetings.length === 0) {
     list.innerHTML = '<div class="empty-state">' +
       '<strong>No meetings yet</strong><br>' +
-      'Upload a recording from your last call, standup, or interview.<br>' +
-      'MeetingMind will transcribe it and save it here for you.' +
+      'Upload a recording or paste your notes to get started.<br>' +
+      'MeetingMind turns conversations into clear decisions, actions, and searchable knowledge — not just transcripts.' +
       '</div>';
     return;
   }
@@ -905,6 +913,84 @@ function showLimitMessage(message) {
     ' <a href="/pricing.html" class="upgrade-link">Upgrade now</a>';
   banner.style.display = 'block';
 }
+
+// ---- Zoom Integration ----
+(function initZoom() {
+  var zoomSection = document.getElementById('zoom-section');
+  var zoomNotConnected = document.getElementById('zoom-not-connected');
+  var zoomConnected = document.getElementById('zoom-connected');
+  var zoomBadge = document.getElementById('zoom-status-badge');
+  var zoomList = document.getElementById('zoom-meetings-list');
+
+  if (!zoomSection) return;
+
+  // Check URL params for Zoom callback status
+  var params = new URLSearchParams(window.location.search);
+  if (params.get('zoom') === 'connected') {
+    history.replaceState(null, '', '/dashboard.html');
+  }
+
+  async function checkZoomStatus() {
+    try {
+      var res = await fetch('/api/zoom/status');
+      var data = await res.json();
+      if (!data.configured) {
+        zoomSection.style.display = 'none';
+        return;
+      }
+      zoomSection.style.display = 'block';
+      if (data.connected) {
+        zoomNotConnected.style.display = 'none';
+        zoomConnected.style.display = 'block';
+        zoomBadge.innerHTML = '<span class="status-badge status-badge--connected">Connected</span>';
+        loadZoomMeetings();
+      } else {
+        zoomNotConnected.style.display = 'block';
+        zoomConnected.style.display = 'none';
+        zoomBadge.innerHTML = '<span class="status-badge status-badge--disconnected">Not connected</span>';
+      }
+    } catch (e) {
+      zoomSection.style.display = 'none';
+    }
+  }
+
+  async function loadZoomMeetings() {
+    zoomList.innerHTML = '<p style="color:#888;font-size:0.9rem">Loading meetings...</p>';
+    try {
+      var res = await fetch('/api/zoom/meetings');
+      if (!res.ok) {
+        zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Could not load Zoom meetings.</p>';
+        return;
+      }
+      var meetings = await res.json();
+      if (meetings.length === 0) {
+        zoomList.innerHTML = '<p style="color:#888;font-size:0.9rem">No recent Zoom meetings found.</p>';
+        return;
+      }
+      zoomList.innerHTML = meetings.map(function(m) {
+        var date = m.start_time ? new Date(m.start_time).toLocaleDateString() : '';
+        var dur = m.duration ? m.duration + ' min' : '';
+        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">' +
+          '<div><strong>' + escapeHtml(m.topic) + '</strong><br><span style="font-size:0.8rem;color:#888">' + date + (dur ? ' &middot; ' + dur : '') + '</span></div>' +
+          '</div>';
+      }).join('');
+    } catch (e) {
+      zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Failed to load meetings.</p>';
+    }
+  }
+
+  document.getElementById('zoom-disconnect-btn').addEventListener('click', async function() {
+    if (!confirm('Disconnect Zoom account?')) return;
+    await fetch('/api/zoom/disconnect', { method: 'POST' });
+    checkZoomStatus();
+  });
+
+  document.getElementById('zoom-refresh-btn').addEventListener('click', function() {
+    loadZoomMeetings();
+  });
+
+  checkZoomStatus();
+})();
 
 // ---- Utility ----
 function escapeHtml(text) {

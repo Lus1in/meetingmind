@@ -80,6 +80,15 @@ if (!cols.includes('reset_token')) {
 if (!cols.includes('reset_token_expires')) {
   db.exec("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME");
 }
+if (!cols.includes('zoom_access_token')) {
+  db.exec("ALTER TABLE users ADD COLUMN zoom_access_token TEXT");
+}
+if (!cols.includes('zoom_refresh_token')) {
+  db.exec("ALTER TABLE users ADD COLUMN zoom_refresh_token TEXT");
+}
+if (!cols.includes('zoom_token_expires')) {
+  db.exec("ALTER TABLE users ADD COLUMN zoom_token_expires DATETIME");
+}
 
 // OAuth provider identities (supports Google, Apple, Microsoft, etc.)
 db.exec(`

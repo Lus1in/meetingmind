@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Blog — MeetingMind</title>
+  <meta name="description" content="Tips, guides, and insights on running better meetings and getting more done with AI-powered meeting notes.">
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <a href="/" class="logo">MeetingMind</a>
+    <nav>
+      <a href="/pricing.html">Pricing</a>
+      <a href="/login.html">Log in</a>
+      <a href="/signup.html" class="btn btn-primary btn-small">Sign up free</a>
+    </nav>
+  </div>
+
+  <div class="container" style="padding-top:40px;padding-bottom:60px;max-width:700px">
+    <h1 style="font-size:2rem;margin-bottom:8px">Blog</h1>
+    <p style="color:#555;margin-bottom:32px">Tips and insights on running better meetings.</p>
+    <div id="blog-posts"></div>
+  </div>
+
+  <footer class="site-footer">
+    <div>&copy; 2026 MeetingMind. All rights reserved.</div>
+    <div class="footer-links">
+      <a href="/pricing.html">Pricing</a>
+      <a href="/blog">Blog</a>
+    </div>
+  </footer>
+
+  <script>
+    fetch('/blog/posts.json')
+      .then(function(r) { return r.json(); })
+      .then(function(posts) {
+        var container = document.getElementById('blog-posts');
+        if (posts.length === 0) {
+          container.innerHTML = '<p style="color:#888">No posts yet. Check back soon!</p>';
+          return;
+        }
+        container.innerHTML = posts.map(function(p) {
+          var date = new Date(p.date + 'T00:00:00').toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+          return '<article class="notepad-sheet" style="margin-bottom:24px">' +
+            '<div class="notepad-header">' + date + '</div>' +
+            '<h2 style="font-size:1.3rem;margin-bottom:8px"><a href="/blog/' + p.slug + '">' + p.title + '</a></h2>' +
+            '<p style="color:#555;font-size:0.95rem;line-height:1.6">' + p.summary + '</p>' +
+            '<a href="/blog/' + p.slug + '" style="font-size:0.9rem;font-weight:500;margin-top:12px;display:inline-block">Read more &rarr;</a>' +
+          '</article>';
+        }).join('');
+      });
+  </script>
+</body>
+</html>
