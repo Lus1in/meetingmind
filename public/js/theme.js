@@ -5,19 +5,10 @@
   if (saved === 'dark') document.body.classList.add('dark-mode');
 })();
 
-// Inject toggle button into navbar after the logo
+// Bind click handler to existing #theme-toggle button in navbar
 document.addEventListener('DOMContentLoaded', function() {
-  var logo = document.querySelector('.navbar .logo');
-  if (!logo) return;
-
-  var btn = document.createElement('button');
-  btn.className = 'theme-toggle';
-  btn.setAttribute('aria-label', 'Toggle dark mode');
-  btn.setAttribute('title', 'Toggle dark mode');
-  btn.innerHTML = '<span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span>';
-
-  // Insert after logo
-  logo.parentNode.insertBefore(btn, logo.nextSibling);
+  var btn = document.getElementById('theme-toggle');
+  if (!btn) return;
 
   btn.addEventListener('click', function() {
     document.body.classList.toggle('dark-mode');
