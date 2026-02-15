@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeetingMind — AI Meeting Notes to Action Items</title>
+  <title>MeetingMind — Your Meetings Finally Have a Memory</title>
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -17,8 +17,8 @@
   </div>
 
   <div class="hero">
-    <h1>Turn meeting notes into<br>action items instantly</h1>
-    <p>Paste your meeting notes. AI extracts tasks, assigns owners, sets deadlines, and drafts follow-up emails — in seconds.</p>
+    <h1>Your meetings finally<br>have a memory</h1>
+    <p>MeetingMind extracts action items, tracks decisions across meetings, and surfaces what fell through the cracks — so nothing gets lost between calls.</p>
     <a href="/signup.html" class="btn btn-primary">Get started free</a>
   </div>
 
@@ -28,12 +28,19 @@
       <p>Automatically extract every task, who's responsible, and when it's due.</p>
     </div>
     <div class="feature-card">
+      <h3>Cross-Meeting Intelligence</h3>
+      <p>See recurring topics, unresolved items, and follow-up signals across all your meetings.</p>
+    </div>
+    <div class="feature-card">
       <h3>Follow-up Emails</h3>
       <p>Get a ready-to-send email summarizing the meeting and next steps.</p>
     </div>
-    <div class="feature-card">
-      <h3>Meeting History</h3>
-      <p>All your processed meetings saved and searchable in one place.</p>
+  </div>
+
+  <div class="features" style="padding-top:0">
+    <div class="feature-card" style="grid-column: 1 / -1; text-align:center; background: linear-gradient(135deg, #eef2ff 0%, #f5f0ff 100%);">
+      <h3>How Cross-Meeting Intelligence works</h3>
+      <p style="max-width:560px;margin:0 auto">Every time you view a meeting, MeetingMind analyzes it against your prior meetings to surface recurring topics, unresolved action items, and follow-up patterns. No extra setup needed — just keep using MeetingMind and the insights build automatically.</p>
     </div>
   </div>
 
@@ -51,5 +58,6 @@
     fetch('/api/auth/me')
       .then(r => { if (r.ok) window.location.href = '/dashboard.html'; });
   </script>
+  <script src="/js/theme.js"></script>
 </body>
 </html>

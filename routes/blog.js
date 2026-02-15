@@ -7,6 +7,12 @@ const router = express.Router();
 // Blog post registry — add new posts here
 const POSTS = [
   {
+    slug: 'cross-meeting-intelligence-future-of-meetings',
+    title: 'Cross-Meeting Intelligence: The Future of Business Meetings',
+    date: '2026-02-15',
+    summary: 'Meetings have a memory problem. Cross-Meeting Intelligence connects conversations across time, surfacing recurring topics, unresolved items, and follow-up patterns automatically.'
+  },
+  {
     slug: 'meetingmind-vs-modern-meetings',
     title: 'How MeetingMind Turns Chaotic Meetings into Clear Action Items',
     date: '2026-02-15',

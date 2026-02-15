@@ -465,6 +465,228 @@ router.patch('/:id/extraction', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/meetings/:id/insights — cross-meeting intelligence
+router.get('/:id/insights', requireAuth, (req, res) => {
+  const meeting = db.prepare(
+    'SELECT id, title, raw_notes, action_items, created_at FROM meetings WHERE id = ? AND user_id = ?'
+  ).get(req.params.id, req.session.userId);
+
+  if (!meeting) {
+    return res.status(404).json({ error: 'Meeting not found' });
+  }
+
+  // Get all OTHER meetings for this user, ordered oldest first
+  const priorMeetings = db.prepare(
+    'SELECT id, title, raw_notes, action_items, created_at FROM meetings WHERE user_id = ? AND id != ? ORDER BY created_at ASC'
+  ).all(req.session.userId, req.params.id);
+
+  if (priorMeetings.length === 0) {
+    return res.json({
+      meeting_id: meeting.id,
+      insights: [],
+      message: 'This is your first meeting. Cross-meeting insights will appear here once you have multiple meetings.'
+    });
+  }
+
+  const insights = generateInsights(meeting, priorMeetings);
+  res.json({ meeting_id: meeting.id, insights });
+});
+
+function generateInsights(current, priorMeetings) {
+  const insights = [];
+  const currentText = (current.raw_notes || '').toLowerCase();
+  const currentWords = extractKeywords(currentText);
+
+  // Analyze each prior meeting
+  const topicOverlaps = [];
+  const unresolvedItems = [];
+  const repeatedNames = new Map(); // person -> count of meetings they appear in
+
+  for (const prior of priorMeetings) {
+    const priorText = (prior.raw_notes || '').toLowerCase();
+    const priorWords = extractKeywords(priorText);
+
+    // Find shared keywords (repeated topics)
+    const shared = currentWords.filter(w => priorWords.includes(w));
+    if (shared.length >= 2) {
+      topicOverlaps.push({
+        meeting_id: prior.id,
+        title: prior.title || 'Untitled Meeting',
+        date: prior.created_at,
+        shared_topics: [...new Set(shared)].slice(0, 5)
+      });
+    }
+
+    // Check for unresolved action items from prior meetings
+    let priorActions;
+    try { priorActions = JSON.parse(prior.action_items); } catch { priorActions = { action_items: [] }; }
+    const priorItems = (priorActions.action_items || []);
+
+    for (const item of priorItems) {
+      const taskLower = (item.task || '').toLowerCase();
+      const taskKeywords = extractKeywords(taskLower);
+      // Action items are short, so even 1 keyword match is meaningful
+      const mentioned = taskKeywords.filter(w => currentText.includes(w));
+      if (mentioned.length >= 1 && taskKeywords.length > 0) {
+        unresolvedItems.push({
+          task: item.task,
+          owner: item.owner,
+          from_meeting: prior.title || 'Untitled Meeting',
+          from_date: prior.created_at,
+          matching_keywords: mentioned.slice(0, 3)
+        });
+      }
+    }
+
+    // Track people appearing across meetings
+    const priorPeople = extractPeople(priorText);
+    const currentPeople = extractPeople(currentText);
+    for (const person of currentPeople) {
+      if (priorPeople.includes(person)) {
+        repeatedNames.set(person, (repeatedNames.get(person) || 0) + 1);
+      }
+    }
+  }
+
+  // Build insight cards
+
+  // 1. Repeated Topics
+  if (topicOverlaps.length > 0) {
+    const allShared = [...new Set(topicOverlaps.flatMap(o => o.shared_topics))].slice(0, 6);
+    insights.push({
+      type: 'repeated_topics',
+      title: 'Recurring Topics',
+      description: `Topics discussed across ${topicOverlaps.length} prior meeting${topicOverlaps.length > 1 ? 's' : ''}: ${allShared.join(', ')}`,
+      details: topicOverlaps.slice(0, 5).map(o => ({
+        meeting: o.title,
+        date: o.date,
+        topics: o.shared_topics
+      }))
+    });
+  }
+
+  // 2. Potentially Unresolved Items
+  if (unresolvedItems.length > 0) {
+    // Deduplicate by task text
+    const seen = new Set();
+    const unique = unresolvedItems.filter(item => {
+      const key = item.task.toLowerCase().trim();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    insights.push({
+      type: 'unresolved_items',
+      title: 'Possibly Unresolved Items',
+      description: `${unique.length} action item${unique.length > 1 ? 's' : ''} from prior meetings may still be in progress.`,
+      details: unique.slice(0, 5).map(item => ({
+        task: item.task,
+        owner: item.owner,
+        from_meeting: item.from_meeting,
+        from_date: item.from_date
+      }))
+    });
+  }
+
+  // 3. Follow-up Signals
+  const followUpPhrases = ['follow up', 'following up', 'last time', 'previously', 'as discussed', 'we agreed', 'circling back', 'checking in on', 'update on'];
+  const foundSignals = followUpPhrases.filter(phrase => currentText.includes(phrase));
+  if (foundSignals.length > 0) {
+    insights.push({
+      type: 'follow_up_signals',
+      title: 'Follow-up References',
+      description: `This meeting references prior discussions: "${foundSignals.join('", "')}"`,
+      details: foundSignals
+    });
+  }
+
+  // 4. Recurring Participants
+  if (repeatedNames.size > 0) {
+    const frequent = [...repeatedNames.entries()]
+      .filter(([, count]) => count >= 1)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 5);
+
+    if (frequent.length > 0) {
+      insights.push({
+        type: 'recurring_participants',
+        title: 'Recurring Participants',
+        description: `${frequent.length} participant${frequent.length > 1 ? 's' : ''} appeared in this and prior meetings.`,
+        details: frequent.map(([name, count]) => ({
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          meeting_count: count + 1
+        }))
+      });
+    }
+  }
+
+  // 5. First-time Topics
+  const allPriorWords = new Set(priorMeetings.flatMap(m => extractKeywords((m.raw_notes || '').toLowerCase())));
+  const newTopics = currentWords.filter(w => !allPriorWords.has(w));
+  if (newTopics.length > 0) {
+    insights.push({
+      type: 'new_topics',
+      title: 'New Topics',
+      description: `First time discussing: ${newTopics.slice(0, 6).join(', ')}`,
+      details: newTopics.slice(0, 8)
+    });
+  }
+
+  return insights;
+}
+
+function extractKeywords(text) {
+  const stopWords = new Set([
+    'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+    'of', 'with', 'by', 'is', 'was', 'are', 'were', 'be', 'been', 'being',
+    'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+    'should', 'may', 'might', 'can', 'shall', 'it', 'its', 'this', 'that',
+    'these', 'those', 'i', 'you', 'he', 'she', 'we', 'they', 'me', 'him',
+    'her', 'us', 'them', 'my', 'your', 'his', 'our', 'their', 'what',
+    'which', 'who', 'whom', 'when', 'where', 'why', 'how', 'all', 'each',
+    'every', 'both', 'few', 'more', 'most', 'other', 'some', 'such', 'no',
+    'not', 'only', 'own', 'same', 'so', 'than', 'too', 'very', 'just',
+    'about', 'above', 'after', 'again', 'also', 'am', 'any', 'as',
+    'because', 'before', 'between', 'from', 'get', 'got', 'if', 'into',
+    'new', 'now', 'out', 'over', 'then', 'there', 'through', 'time',
+    'up', 'want', 'well', 'went', 'need', 'know', 'like', 'going',
+    'think', 'make', 'said', 'look', 'come', 'let', 'still', 'll',
+    're', 've', 'don', 'didn', 'won', 'isn', 'aren', 'doesn', 'wasn'
+  ]);
+
+  const words = text.replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !stopWords.has(w));
+  // Return unique words, weighted by frequency
+  const freq = {};
+  for (const w of words) freq[w] = (freq[w] || 0) + 1;
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 20)
+    .map(([word]) => word);
+}
+
+function extractPeople(text) {
+  // Simple heuristic: look for capitalized names in patterns like "Name:" or "Attendees: Name, Name"
+  const attendeeMatch = text.match(/attendees?[:\s]+([^\n]+)/i);
+  const people = new Set();
+
+  if (attendeeMatch) {
+    attendeeMatch[1].split(/[,;&]+/).forEach(name => {
+      const cleaned = name.trim().toLowerCase().split(/\s+/)[0];
+      if (cleaned && cleaned.length > 1 && cleaned.length < 20) people.add(cleaned);
+    });
+  }
+
+  // Also look for "Name:" speaker patterns
+  const speakerPattern = /^([a-z]{2,15}):/gm;
+  let match;
+  while ((match = speakerPattern.exec(text)) !== null) {
+    people.add(match[1]);
+  }
+
+  return [...people];
+}
+
 // DELETE /api/meetings/:id — delete a meeting (only if owned by user)
 router.delete('/:id', requireAuth, (req, res) => {
   const result = db.prepare(

@@ -352,7 +352,7 @@ async function loadMeetings() {
     list.innerHTML = '<div class="empty-state">' +
       '<strong>No meetings yet</strong><br>' +
       'Upload a recording or paste your notes to get started.<br>' +
-      'MeetingMind turns conversations into clear decisions, actions, and searchable knowledge — not just transcripts.' +
+      'MeetingMind extracts action items and analyzes patterns across meetings — recurring topics, unresolved tasks, and follow-up signals build automatically.' +
       '</div>';
     return;
   }
@@ -460,6 +460,9 @@ async function viewMeeting(id, highlight) {
 
   // Render action items + follow-up email in detail view
   renderDetailExtraction(meeting.action_items);
+
+  // Load cross-meeting insights
+  loadInsights(meeting.id);
 
   // Show detail, hide list
   const detailEl = document.getElementById('meeting-detail');
@@ -920,7 +923,7 @@ function showLimitMessage(message) {
   var zoomNotConnected = document.getElementById('zoom-not-connected');
   var zoomConnected = document.getElementById('zoom-connected');
   var zoomBadge = document.getElementById('zoom-status-badge');
-  var zoomList = document.getElementById('zoom-meetings-list');
+  var zoomList = document.getElementById('zoom-recordings-list');
 
   if (!zoomSection) return;
 
@@ -928,6 +931,12 @@ function showLimitMessage(message) {
   var params = new URLSearchParams(window.location.search);
   if (params.get('zoom') === 'connected') {
     history.replaceState(null, '', '/dashboard.html');
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes) return '';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   }
 
   async function checkZoomStatus() {
@@ -943,7 +952,7 @@ function showLimitMessage(message) {
         zoomNotConnected.style.display = 'none';
         zoomConnected.style.display = 'block';
         zoomBadge.innerHTML = '<span class="status-badge status-badge--connected">Connected</span>';
-        loadZoomMeetings();
+        loadZoomRecordings();
       } else {
         zoomNotConnected.style.display = 'block';
         zoomConnected.style.display = 'none';
@@ -954,30 +963,94 @@ function showLimitMessage(message) {
     }
   }
 
-  async function loadZoomMeetings() {
-    zoomList.innerHTML = '<p style="color:#888;font-size:0.9rem">Loading meetings...</p>';
+  async function loadZoomRecordings() {
+    zoomList.innerHTML = '<p style="color:#888;font-size:0.9rem">Loading recordings...</p>';
     try {
-      var res = await fetch('/api/zoom/meetings');
+      var res = await fetch('/api/zoom/recordings');
+      if (res.status === 401) {
+        zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Zoom session expired. Please reconnect.</p>';
+        return;
+      }
       if (!res.ok) {
-        zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Could not load Zoom meetings.</p>';
+        zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Could not load Zoom recordings.</p>';
         return;
       }
       var meetings = await res.json();
       if (meetings.length === 0) {
-        zoomList.innerHTML = '<p style="color:#888;font-size:0.9rem">No recent Zoom meetings found.</p>';
+        zoomList.innerHTML = '<p style="color:#888;font-size:0.9rem">No cloud recordings found in the last 30 days. Make sure cloud recording is enabled in your Zoom settings.</p>';
         return;
       }
       zoomList.innerHTML = meetings.map(function(m) {
-        var date = m.start_time ? new Date(m.start_time).toLocaleDateString() : '';
+        var date = m.start_time ? new Date(m.start_time).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '';
         var dur = m.duration ? m.duration + ' min' : '';
-        return '<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #f0f0f0">' +
-          '<div><strong>' + escapeHtml(m.topic) + '</strong><br><span style="font-size:0.8rem;color:#888">' + date + (dur ? ' &middot; ' + dur : '') + '</span></div>' +
-          '</div>';
+        // Prefer audio_only (M4A), fall back to first available recording
+        var audioRec = m.recordings.find(function(r) { return r.recording_type === 'audio_only'; });
+        var bestRec = audioRec || m.recordings[0];
+        var fileInfo = bestRec.file_type + (bestRec.file_size ? ' · ' + formatFileSize(bestRec.file_size) : '');
+
+        return '<div class="zoom-recording-row" style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid #f0f0f0;gap:10px;flex-wrap:wrap">' +
+          '<div style="flex:1;min-width:0">' +
+            '<strong style="word-break:break-word">' + escapeHtml(m.topic) + '</strong><br>' +
+            '<span style="font-size:0.8rem;color:#888">' + date + (dur ? ' · ' + dur : '') + ' · ' + fileInfo + '</span>' +
+          '</div>' +
+          '<button class="btn btn-primary btn-small zoom-import-btn" ' +
+            'data-meeting-id="' + escapeHtml(m.meeting_id) + '" ' +
+            'data-recording-id="' + escapeHtml(bestRec.id) + '" ' +
+            'data-topic="' + escapeHtml(m.topic) + '" ' +
+            'data-start="' + escapeHtml(m.start_time || '') + '" ' +
+            'style="white-space:nowrap">Import &amp; Transcribe</button>' +
+        '</div>';
       }).join('');
     } catch (e) {
-      zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Failed to load meetings.</p>';
+      zoomList.innerHTML = '<p style="color:#e63946;font-size:0.9rem">Failed to load recordings.</p>';
     }
   }
+
+  // Event delegation for import buttons
+  zoomList.addEventListener('click', async function(e) {
+    var btn = e.target.closest('.zoom-import-btn');
+    if (!btn) return;
+
+    var meetingId = btn.getAttribute('data-meeting-id');
+    var recordingId = btn.getAttribute('data-recording-id');
+    var topic = btn.getAttribute('data-topic');
+    var startTime = btn.getAttribute('data-start');
+
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+
+    try {
+      var res = await fetch('/api/zoom/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ meeting_id: meetingId, recording_id: recordingId, topic: topic, start_time: startTime })
+      });
+
+      var data = await res.json();
+
+      if (!res.ok) {
+        btn.disabled = false;
+        btn.textContent = 'Import & Transcribe';
+        if (data.error === 'meeting_limit') {
+          alert(data.message || 'Meeting storage limit reached. Upgrade for unlimited storage.');
+        } else {
+          alert(data.error || 'Import failed. Please try again.');
+        }
+        return;
+      }
+
+      btn.textContent = 'Imported!';
+      btn.classList.remove('btn-primary');
+      btn.classList.add('btn-secondary');
+
+      // Refresh meetings list to show the new import
+      if (typeof loadMeetings === 'function') loadMeetings();
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = 'Import & Transcribe';
+      alert('Failed to import recording. Please try again.');
+    }
+  });
 
   document.getElementById('zoom-disconnect-btn').addEventListener('click', async function() {
     if (!confirm('Disconnect Zoom account?')) return;
@@ -986,11 +1059,104 @@ function showLimitMessage(message) {
   });
 
   document.getElementById('zoom-refresh-btn').addEventListener('click', function() {
-    loadZoomMeetings();
+    loadZoomRecordings();
   });
 
   checkZoomStatus();
 })();
+
+// ---- Cross-Meeting Intelligence ----
+const INSIGHT_ICONS = {
+  repeated_topics: '\u{1F504}',
+  unresolved_items: '\u{26A0}',
+  follow_up_signals: '\u{1F517}',
+  recurring_participants: '\u{1F465}',
+  new_topics: '\u{2728}'
+};
+
+async function loadInsights(meetingId) {
+  const section = document.getElementById('insights-section');
+  const content = document.getElementById('insights-content');
+  const emptyEl = document.getElementById('insights-empty');
+
+  section.style.display = 'block';
+  content.innerHTML = '<p class="insights-loading">Analyzing meeting connections...</p>';
+  emptyEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`/api/meetings/${meetingId}/insights`);
+    if (!res.ok) {
+      section.style.display = 'none';
+      return;
+    }
+
+    const data = await res.json();
+
+    if (!data.insights || data.insights.length === 0) {
+      content.innerHTML = '';
+      emptyEl.textContent = data.message || 'No cross-meeting patterns detected yet. Insights will appear as you add more meetings.';
+      emptyEl.style.display = 'block';
+      return;
+    }
+
+    emptyEl.style.display = 'none';
+    content.innerHTML = data.insights.map(renderInsightCard).join('');
+  } catch (err) {
+    section.style.display = 'none';
+  }
+}
+
+function renderInsightCard(insight) {
+  const icon = INSIGHT_ICONS[insight.type] || '\u{1F4A1}';
+  let detailsHtml = '';
+
+  if (insight.type === 'repeated_topics' && Array.isArray(insight.details)) {
+    detailsHtml = '<ul class="insight-detail-list">' +
+      insight.details.map(d =>
+        `<li><strong>${escapeHtml(d.meeting)}</strong> &mdash; ${escapeHtml(formatInsightDate(d.date))}` +
+        (d.topics ? ': ' + d.topics.map(t => `<span class="insight-tag">${escapeHtml(t)}</span>`).join('') : '') +
+        '</li>'
+      ).join('') + '</ul>';
+  } else if (insight.type === 'unresolved_items' && Array.isArray(insight.details)) {
+    detailsHtml = '<ul class="insight-detail-list">' +
+      insight.details.map(d =>
+        `<li>"${escapeHtml(d.task)}"` +
+        (d.owner ? ` (${escapeHtml(d.owner)})` : '') +
+        ` &mdash; from <strong>${escapeHtml(d.from_meeting)}</strong></li>`
+      ).join('') + '</ul>';
+  } else if (insight.type === 'recurring_participants' && Array.isArray(insight.details)) {
+    detailsHtml = '<div style="margin-top:4px">' +
+      insight.details.map(d =>
+        `<span class="insight-tag">${escapeHtml(d.name)} (${d.meeting_count} meetings)</span>`
+      ).join('') + '</div>';
+  } else if (insight.type === 'new_topics' && Array.isArray(insight.details)) {
+    detailsHtml = '<div style="margin-top:4px">' +
+      insight.details.map(t =>
+        `<span class="insight-tag">${escapeHtml(t)}</span>`
+      ).join('') + '</div>';
+  } else if (insight.type === 'follow_up_signals' && Array.isArray(insight.details)) {
+    detailsHtml = '<div style="margin-top:4px">' +
+      insight.details.map(s =>
+        `<span class="insight-tag">"${escapeHtml(s)}"</span>`
+      ).join('') + '</div>';
+  }
+
+  return `<div class="insight-card">
+    <div class="insight-card-header">
+      <span class="insight-icon ${escapeHtml(insight.type)}">${icon}</span>
+      <span class="insight-card-title">${escapeHtml(insight.title)}</span>
+    </div>
+    <div class="insight-card-description">${escapeHtml(insight.description)}</div>
+    ${detailsHtml}
+  </div>`;
+}
+
+function formatInsightDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  } catch { return dateStr; }
+}
 
 // ---- Utility ----
 function escapeHtml(text) {

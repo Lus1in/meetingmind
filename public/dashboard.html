@@ -35,20 +35,20 @@
 
     <!-- Zoom Import Section -->
     <div class="upload-section" id="zoom-section" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-        <h3 style="margin:0">Zoom Meetings</h3>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+        <h3 style="margin:0">Zoom Cloud Recordings</h3>
         <span id="zoom-status-badge"></span>
       </div>
       <div id="zoom-not-connected">
-        <p class="helper-text">Connect your Zoom account to import meeting recordings directly.</p>
+        <p class="helper-text">Connect your Zoom account to import cloud recordings. MeetingMind will transcribe them and extract action items automatically.</p>
         <a class="btn btn-primary btn-small" id="zoom-connect-btn" href="/api/zoom/connect">Connect Zoom</a>
       </div>
       <div id="zoom-connected" style="display:none">
-        <div style="display:flex;gap:8px;margin-bottom:12px">
-          <button class="btn btn-secondary btn-small" id="zoom-refresh-btn">Refresh Meetings</button>
+        <div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-small" id="zoom-refresh-btn">Fetch Recordings</button>
           <button class="btn btn-danger btn-small" id="zoom-disconnect-btn">Disconnect</button>
         </div>
-        <div id="zoom-meetings-list"></div>
+        <div id="zoom-recordings-list"></div>
       </div>
     </div>
 
@@ -127,6 +127,16 @@
         <h3 style="margin-top:24px">Action Items</h3>
         <div id="detail-extraction-content"></div>
       </div>
+      <!-- Cross-Meeting Intelligence -->
+      <div id="insights-section" style="display:none;margin-top:24px">
+        <div class="insights-header">
+          <h3>Cross-Meeting Intelligence</h3>
+          <span class="insights-badge">Insights</span>
+        </div>
+        <div id="insights-content"></div>
+        <p id="insights-empty" class="insights-empty" style="display:none"></p>
+      </div>
+
       <p class="privacy-note">Your transcripts are private and only visible to you.</p>
     </div>
 
@@ -146,6 +156,7 @@
     <div style="margin-top:10px;font-size:0.8rem;color:#aaa">Coming soon: integrations with Slack, Jira, and other tools.</div>
   </footer>
 
+  <script src="/js/theme.js"></script>
   <script src="/js/dashboard.js"></script>
   <script src="/js/feedback.js"></script>
 </body>
