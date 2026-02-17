@@ -41,7 +41,15 @@ async function checkAuth() {
   }
 }
 
-checkAuth().then(loadMeetings);
+checkAuth().then(loadMeetings).then(function() {
+  // Auto-open meeting detail if ?view=ID is in the URL (used by live meeting redirect)
+  var params = new URLSearchParams(window.location.search);
+  var viewId = params.get('view');
+  if (viewId) {
+    history.replaceState(null, '', '/dashboard.html');
+    viewMeeting(parseInt(viewId), true);
+  }
+});
 
 // ---- Logout ----
 document.getElementById('logout-btn').addEventListener('click', async () => {

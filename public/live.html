@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Live Meeting — MeetingMind</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div class="navbar">
+    <div class="nav-brand">
+      <a href="/dashboard.html" class="logo">MeetingMind</a>
+      <button class="theme-toggle" id="theme-toggle" aria-label="Toggle dark mode" title="Toggle dark mode"><span class="icon-sun">&#9728;</span><span class="icon-moon">&#9790;</span></button>
+    </div>
+    <nav>
+      <a href="/dashboard.html" class="btn btn-secondary btn-small">Dashboard</a>
+      <button class="btn btn-secondary btn-small" id="logout-btn">Log out</button>
+    </nav>
+  </div>
+
+  <!-- Setup Phase -->
+  <div class="container live-page" id="setup-phase">
+    <div class="live-setup notepad-sheet">
+      <div class="notepad-header"><span class="rec-dot"></span> Start Live Meeting</div>
+      <p class="helper-text">MeetingMind will transcribe your meeting in real time and extract action items when you're done. Make sure your microphone is working and all participants have consented to recording.</p>
+
+      <div class="form-group">
+        <label for="live-title">Meeting title</label>
+        <input type="text" id="live-title" placeholder="e.g. Sprint Planning — Feb 17" required>
+      </div>
+      <div class="form-group">
+        <label for="live-participants">Participants <span style="font-weight:normal;color:var(--color-text-secondary)">(optional, comma-separated)</span></label>
+        <input type="text" id="live-participants" placeholder="e.g. Sarah, John, Mike">
+      </div>
+
+      <div class="live-consent">
+        <label class="consent-label">
+          <input type="checkbox" id="live-consent-check">
+          <span>I confirm that all participants have consented to this meeting being recorded and transcribed.</span>
+        </label>
+      </div>
+
+      <div class="live-setup-actions">
+        <button class="btn btn-primary" id="start-live-btn" disabled>Start Recording</button>
+        <a href="/dashboard.html" class="btn btn-secondary">Cancel</a>
+      </div>
+
+      <div class="live-error" id="setup-error" style="display:none"></div>
+    </div>
+  </div>
+
+  <!-- Live Session Phase -->
+  <div class="live-page" id="session-phase" style="display:none">
+    <!-- Status Bar -->
+    <div class="live-status-bar">
+      <div class="live-status-left">
+        <span class="live-indicator" id="live-indicator">
+          <span class="rec-dot"></span>
+          <span id="live-status-text">Live</span>
+        </span>
+        <span class="live-timer" id="live-timer">0:00</span>
+      </div>
+      <div class="live-status-right">
+        <span class="live-title-display" id="live-title-display"></span>
+      </div>
+    </div>
+
+    <!-- Main Content Area -->
+    <div class="live-content">
+      <!-- Transcript Panel -->
+      <div class="live-transcript-panel">
+        <div class="live-transcript-header">
+          <h3>Live Transcript</h3>
+          <button class="btn btn-secondary btn-small scroll-toggle" id="scroll-toggle" title="Auto-scroll is on">Auto-scroll: On</button>
+        </div>
+        <div class="live-transcript" id="live-transcript">
+          <div class="live-transcript-empty" id="transcript-empty">
+            Waiting for speech...
+          </div>
+        </div>
+      </div>
+
+      <!-- Highlights Panel -->
+      <div class="live-highlights-panel">
+        <div class="live-highlights-section">
+          <h4>Highlights</h4>
+          <p class="helper-text" id="highlights-placeholder">Action items and decisions will appear here after the meeting ends.</p>
+        </div>
+
+        <div class="live-highlights-section" id="memory-hints-section" style="display:none">
+          <h4>Related Past Meetings</h4>
+          <div id="memory-hints-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Control Bar -->
+    <div class="live-controls">
+      <button class="btn btn-secondary" id="pause-btn">Pause</button>
+      <button class="btn btn-danger" id="stop-live-btn">Stop Meeting</button>
+    </div>
+  </div>
+
+  <!-- Processing Phase -->
+  <div class="container live-page" id="processing-phase" style="display:none">
+    <div class="live-processing">
+      <div class="spinner"></div>
+      <h3>Processing your meeting...</h3>
+      <p>Extracting action items and generating summary.</p>
+    </div>
+  </div>
+
+  <script src="/js/theme.js"></script>
+  <script src="/js/live.js"></script>
+</body>
+</html>

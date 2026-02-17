@@ -121,6 +121,34 @@ db.exec(`
   );
 `);
 
+// Live transcription sessions
+db.exec(`
+  CREATE TABLE IF NOT EXISTS live_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT,
+    participants TEXT,
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','completed','failed')),
+    started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    ended_at DATETIME,
+    meeting_id INTEGER,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (meeting_id) REFERENCES meetings(id) ON DELETE SET NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS transcript_segments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    segment_index INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    timestamp_ms INTEGER NOT NULL,
+    speaker TEXT DEFAULT 'Speaker',
+    is_final INTEGER NOT NULL DEFAULT 1,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (session_id) REFERENCES live_sessions(id) ON DELETE CASCADE
+  );
+`);
+
 // Constraints & triggers
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_stripe_customer

@@ -49,6 +49,7 @@ const billingRoutes = require('./routes/billing');
 const feedbackRoutes = require('./routes/feedback');
 const adminUsersRoutes = require('./routes/admin-users');
 const zoomRoutes = require('./routes/zoom');
+const liveRoutes = require('./routes/live');
 const blogRoutes = require('./routes/blog');
 const lastSeen = require('./middleware/lastSeen');
 
@@ -105,6 +106,7 @@ app.use('/api/billing', billingRoutes);
 app.use('/api/feedback', feedbackRoutes);
 app.use('/api/admin/users', adminUsersRoutes);
 app.use('/api/zoom', zoomRoutes);
+app.use('/api/live', liveRoutes);
 app.use('/blog', blogRoutes);
 
 // Admin feedback page — served behind auth + admin check

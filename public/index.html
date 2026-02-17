@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MeetingMind — Your Meetings Finally Have a Memory</title>
+  <title>MeetingMind — Real-Time Meeting Assistant</title>
+  <meta name="description" content="MeetingMind transcribes your meetings in real time, extracts action items automatically, and tracks insights across every call. Free to start.">
   <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
@@ -20,31 +21,83 @@
   </div>
 
   <div class="hero">
-    <h1>Your meetings finally<br>have a memory</h1>
-    <p>MeetingMind extracts action items, tracks decisions across meetings, and surfaces what fell through the cracks — so nothing gets lost between calls.</p>
-    <a href="/signup.html" class="btn btn-primary">Get started free</a>
+    <span class="hero-eyebrow">
+      <span class="live-dot"></span>
+      Real-time meeting assistant
+    </span>
+    <h1>Turn every meeting into<br>clear actions, instantly</h1>
+    <p>MeetingMind transcribes your meetings in real time, extracts action items with owners and deadlines, and tracks what falls through the cracks across every call.</p>
+    <div class="hero-ctas">
+      <a href="/signup.html" class="btn btn-primary">Get started free</a>
+      <a href="#how-it-works" class="btn-ghost">See how it works</a>
+    </div>
   </div>
 
+  <div class="trust-section">
+    <div class="trust-signals">
+      <div class="trust-item">
+        <span>&#128274;</span>
+        <span>Your data stays private &mdash; transcripts are never shared</span>
+      </div>
+      <div class="trust-item">
+        <span>&#9889;</span>
+        <span>Works with Zoom, uploads, or live recording</span>
+      </div>
+      <div class="trust-item">
+        <span>&#128176;</span>
+        <span>Free forever plan &mdash; no credit card required</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="how-it-works" id="how-it-works">
+    <h2>How MeetingMind works</h2>
+    <p class="section-subtitle">Three steps. Zero busywork.</p>
+    <div class="steps-grid">
+      <div class="step-card">
+        <div class="step-number">1</div>
+        <h3>Record or upload</h3>
+        <p>Hit record during your meeting, upload an audio file, or import directly from Zoom. MeetingMind handles the transcription automatically.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">2</div>
+        <h3>Get action items</h3>
+        <p>AI reads through the full transcript and pulls out every task, who owns it, and when it's due. Ready in seconds, not hours.</p>
+      </div>
+      <div class="step-card">
+        <div class="step-number">3</div>
+        <h3>Never lose a thread</h3>
+        <p>MeetingMind compares each meeting against your past ones, surfacing recurring topics, unresolved tasks, and follow-up patterns automatically.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="landing-section">
+    <h2>Everything your meetings need</h2>
+    <p class="section-subtitle">From real-time transcription to automatic follow-ups.</p>
+  </div>
   <div class="features">
     <div class="feature-card">
-      <h3>Action Items</h3>
-      <p>Automatically extract every task, who's responsible, and when it's due.</p>
+      <div class="feature-card-icon icon-action-items">&#9998;</div>
+      <h3>Action items &amp; deadlines</h3>
+      <p>Every task extracted automatically with the owner and due date. No more scanning through notes to figure out who said what.</p>
     </div>
     <div class="feature-card">
-      <h3>Cross-Meeting Intelligence</h3>
-      <p>See recurring topics, unresolved items, and follow-up signals across all your meetings.</p>
+      <div class="feature-card-icon icon-patterns">&#128200;</div>
+      <h3>Meeting-to-meeting tracking</h3>
+      <p>See what came up before, what was never resolved, and what keeps getting pushed. MeetingMind connects the dots across all your calls.</p>
     </div>
     <div class="feature-card">
-      <h3>Follow-up Emails</h3>
-      <p>Get a ready-to-send email summarizing the meeting and next steps.</p>
+      <div class="feature-card-icon icon-email">&#9993;</div>
+      <h3>Follow-up emails, ready to send</h3>
+      <p>Get a professional summary email with the decisions made and next steps. Copy it or open it directly in Gmail or Outlook.</p>
     </div>
   </div>
 
-  <div class="features" style="padding-top:0">
-    <div class="feature-card" style="grid-column: 1 / -1; text-align:center; background: linear-gradient(135deg, #eef2ff 0%, #f5f0ff 100%);">
-      <h3>How Cross-Meeting Intelligence works</h3>
-      <p style="max-width:560px;margin:0 auto">Every time you view a meeting, MeetingMind analyzes it against your prior meetings to surface recurring topics, unresolved action items, and follow-up patterns. No extra setup needed — just keep using MeetingMind and the insights build automatically.</p>
-    </div>
+  <div class="cta-banner">
+    <h2>Start running better meetings today</h2>
+    <p>Free plan includes 5 extractions. No credit card needed.</p>
+    <a href="/signup.html" class="btn">Get started free</a>
   </div>
 
   <footer class="site-footer">
@@ -53,11 +106,9 @@
       <a href="/pricing.html">Pricing</a>
       <a href="/blog">Blog</a>
     </div>
-    <div style="margin-top:10px;font-size:0.8rem;color:#aaa">Coming soon: integrations with Slack, Jira, and other tools.</div>
   </footer>
 
   <script>
-    // If already logged in, redirect to dashboard
     fetch('/api/auth/me')
       .then(r => { if (r.ok) window.location.href = '/dashboard.html'; });
   </script>
