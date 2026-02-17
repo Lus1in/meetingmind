@@ -7,6 +7,12 @@ const router = express.Router();
 // Blog post registry — add new posts here
 const POSTS = [
   {
+    slug: 'why-live-transcription-matters',
+    title: 'Why Live Transcription Changes Everything About How You Run Meetings',
+    date: '2026-02-17',
+    summary: 'Real-time transcription isn\'t just a nice-to-have — it fundamentally changes how teams collaborate during and after meetings. Here\'s why live matters more than post-meeting uploads.'
+  },
+  {
     slug: 'cross-meeting-intelligence-future-of-meetings',
     title: 'Cross-Meeting Intelligence: The Future of Business Meetings',
     date: '2026-02-15',

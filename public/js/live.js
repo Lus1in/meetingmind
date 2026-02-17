@@ -1,3 +1,7 @@
+// ---- Debug flag (set to true in console to enable) ----
+var LIVE_DEBUG = false;
+function dbg() { if (LIVE_DEBUG) console.log.apply(console, ['[live]'].concat(Array.prototype.slice.call(arguments))); }
+
 // ---- Auth Guard ----
 (async function checkAuth() {
   var res = await fetch('/api/auth/me');
@@ -19,12 +23,13 @@ var mediaRecorder = null;
 var audioStream = null;
 var eventSource = null;
 var timerInterval = null;
+var chunkInterval = null;
 var memoryHintsInterval = null;
 var recordingStart = 0;
 var autoScroll = true;
 var isPaused = false;
-var pendingChunks = []; // Buffer for retry on network errors
-var chunkTimestamp = 0;
+var isStopping = false;
+var chunkCounter = 0;
 
 // ---- DOM Refs ----
 var setupPhase = document.getElementById('setup-phase');
@@ -54,7 +59,7 @@ consentCheck.addEventListener('change', function() {
 
 // ---- Prevent accidental page leave during live session ----
 window.addEventListener('beforeunload', function(e) {
-  if (sessionId && !isPaused) {
+  if (sessionId) {
     e.preventDefault();
     e.returnValue = 'You have a live meeting in progress. Are you sure you want to leave?';
   }
@@ -66,7 +71,7 @@ scrollToggle.addEventListener('click', function() {
   scrollToggle.textContent = 'Auto-scroll: ' + (autoScroll ? 'On' : 'Off');
 });
 
-// Also pause auto-scroll on manual scroll
+// Pause auto-scroll on manual scroll up
 liveTranscript.addEventListener('scroll', function() {
   var el = liveTranscript;
   var atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 50;
@@ -114,7 +119,6 @@ startBtn.addEventListener('click', async function() {
       var errData = await res.json();
       if (errData.error === 'session_active') {
         sessionId = errData.session_id;
-        // Resume existing session
       } else {
         throw new Error(errData.message || errData.error || 'Failed to start session');
       }
@@ -123,11 +127,10 @@ startBtn.addEventListener('click', async function() {
       sessionId = data.session_id;
     }
 
-    // Start the live session UI
+    dbg('Session started:', sessionId);
     startLiveSession(title);
   } catch (err) {
     showSetupError(err.message || 'Something went wrong. Please try again.');
-    // Clean up mic
     if (audioStream) {
       audioStream.getTracks().forEach(function(t) { t.stop(); });
       audioStream = null;
@@ -138,13 +141,13 @@ startBtn.addEventListener('click', async function() {
 });
 
 function startLiveSession(title) {
-  // Switch to session phase
   setupPhase.style.display = 'none';
   sessionPhase.style.display = 'flex';
 
   liveTitleDisplay.textContent = title;
   recordingStart = Date.now();
-  chunkTimestamp = 0;
+  chunkCounter = 0;
+  isStopping = false;
 
   // Start timer
   timerInterval = setInterval(updateTimer, 1000);
@@ -152,10 +155,10 @@ function startLiveSession(title) {
   // Connect SSE for receiving transcript segments
   connectSSE();
 
-  // Start recording audio
-  startRecording();
+  // Start chunked recording cycle
+  startChunkCycle();
 
-  // Start memory hints polling (every 45 seconds, after 30 second initial delay)
+  // Start memory hints polling (every 45s, 30s initial delay)
   memoryHintsInterval = setTimeout(function() {
     fetchMemoryHints();
     memoryHintsInterval = setInterval(fetchMemoryHints, 45000);
@@ -171,15 +174,17 @@ function connectSSE() {
   eventSource = new EventSource('/api/live/' + sessionId + '/stream');
 
   eventSource.onopen = function() {
+    dbg('SSE connected');
     setStatus('live');
   };
 
   eventSource.onmessage = function(e) {
+    dbg('SSE message:', e.data.substring(0, 80));
     try {
       var segment = JSON.parse(e.data);
       appendSegment(segment);
     } catch (err) {
-      // Ignore parse errors
+      dbg('SSE parse error:', err.message);
     }
   };
 
@@ -188,6 +193,7 @@ function connectSSE() {
   });
 
   eventSource.addEventListener('stopped', function() {
+    dbg('SSE stopped event received');
     if (eventSource) {
       eventSource.close();
       eventSource = null;
@@ -196,39 +202,90 @@ function connectSSE() {
 
   eventSource.onerror = function() {
     if (eventSource && eventSource.readyState === EventSource.CONNECTING) {
+      dbg('SSE reconnecting...');
       setStatus('reconnecting');
     } else if (eventSource && eventSource.readyState === EventSource.CLOSED) {
+      dbg('SSE closed');
       setStatus('disconnected');
     }
   };
 }
 
-// ---- Audio Recording ----
-function startRecording() {
-  if (!audioStream) return;
+// ================================================================
+// Chunked Recording
+//
+// KEY FIX: We do NOT use MediaRecorder's timeslice parameter.
+// WebM chunks from timeslice are NOT standalone audio files — only
+// the first chunk has the container header. Whisper rejects headerless
+// continuation chunks.
+//
+// Instead, we run a cycle: start recorder → wait 5s → stop recorder
+// (which produces a complete standalone file) → send it → start again.
+// ================================================================
 
-  mediaRecorder = new MediaRecorder(audioStream, {
-    mimeType: getSupportedMimeType()
-  });
+function startChunkCycle() {
+  captureOneChunk();
+}
+
+function captureOneChunk() {
+  if (isStopping || !audioStream) return;
+  if (isPaused) {
+    // Re-check after 1 second
+    setTimeout(captureOneChunk, 1000);
+    return;
+  }
+
+  var mimeType = getSupportedMimeType();
+  var chunks = [];
+
+  try {
+    var opts = {};
+    if (mimeType) opts.mimeType = mimeType;
+    mediaRecorder = new MediaRecorder(audioStream, opts);
+  } catch (err) {
+    dbg('MediaRecorder init error:', err.message);
+    // Fallback — try without mimeType
+    mediaRecorder = new MediaRecorder(audioStream);
+  }
 
   mediaRecorder.ondataavailable = function(e) {
-    if (e.data && e.data.size > 0 && !isPaused) {
-      sendChunk(e.data);
+    if (e.data && e.data.size > 0) {
+      chunks.push(e.data);
     }
   };
 
   mediaRecorder.onstop = function() {
-    // Recording stopped — handled by stop button
+    if (chunks.length === 0 || isStopping) return;
+
+    var blob = new Blob(chunks, { type: mimeType || 'audio/webm' });
+    dbg('Chunk', chunkCounter, 'captured, size:', blob.size);
+    chunkCounter++;
+    sendChunk(blob);
+
+    // Start next chunk cycle (if not stopping)
+    if (!isStopping && !isPaused) {
+      captureOneChunk();
+    } else if (isPaused) {
+      // Wait for resume
+      setTimeout(captureOneChunk, 1000);
+    }
   };
 
-  // Record in 5-second chunks
-  mediaRecorder.start(5000);
+  mediaRecorder.start();
+  dbg('Recording chunk, will stop in 5s');
+
+  // Stop after 5 seconds to produce a complete standalone file
+  setTimeout(function() {
+    if (mediaRecorder && mediaRecorder.state === 'recording') {
+      mediaRecorder.stop();
+    }
+  }, 5000);
 }
 
 function getSupportedMimeType() {
   var types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
   for (var i = 0; i < types.length; i++) {
-    if (MediaRecorder.isTypeSupported(types[i])) return types[i];
+    if (typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(types[i])) return types[i];
   }
   return '';
 }
@@ -240,6 +297,8 @@ async function sendChunk(blob) {
   var formData = new FormData();
   formData.append('audio', blob, 'chunk.webm');
   formData.append('timestamp_ms', timestampMs.toString());
+
+  dbg('Sending chunk, size:', blob.size, 'timestamp:', timestampMs);
 
   try {
     var res = await fetch('/api/live/' + sessionId + '/chunk', {
@@ -253,24 +312,26 @@ async function sendChunk(blob) {
         window.location.href = '/login.html';
         return;
       }
-      console.error('[live] Chunk upload failed:', errData.error);
+      dbg('Chunk upload failed:', errData.error);
+    } else {
+      var resData = await res.json();
+      dbg('Chunk upload OK, segment_index:', resData.segment_index, 'silent:', resData.silent);
     }
   } catch (err) {
-    console.error('[live] Chunk upload network error:', err.message);
+    dbg('Chunk upload network error:', err.message);
     setStatus('reconnecting');
-    // Chunks are fire-and-forget in MVP — SSE will reconnect
   }
 }
 
 // ---- Append Transcript Segment ----
 function appendSegment(segment) {
-  // Remove empty state
   if (transcriptEmpty) {
     transcriptEmpty.style.display = 'none';
   }
 
   var div = document.createElement('div');
   div.className = 'live-transcript-segment';
+  div.setAttribute('data-index', segment.segment_index);
 
   var timeStr = formatTimestamp(segment.timestamp_ms);
   div.innerHTML =
@@ -280,7 +341,6 @@ function appendSegment(segment) {
 
   liveTranscript.appendChild(div);
 
-  // Auto-scroll to bottom
   if (autoScroll) {
     liveTranscript.scrollTop = liveTranscript.scrollHeight;
   }
@@ -324,18 +384,18 @@ function setStatus(status) {
 pauseBtn.addEventListener('click', function() {
   if (!isPaused) {
     isPaused = true;
+    // Stop current recording chunk early if active
     if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.pause();
+      mediaRecorder.stop(); // will trigger onstop → send partial chunk → wait
     }
     pauseBtn.textContent = 'Resume';
     setStatus('paused');
   } else {
     isPaused = false;
-    if (mediaRecorder && mediaRecorder.state === 'paused') {
-      mediaRecorder.resume();
-    }
     pauseBtn.textContent = 'Pause';
     setStatus('live');
+    // Restart chunk cycle
+    captureOneChunk();
   }
 });
 
@@ -344,18 +404,20 @@ stopBtn.addEventListener('click', async function() {
   if (!confirm('Stop this meeting? The transcript will be saved and action items extracted.')) {
     return;
   }
-
   await stopMeeting();
 });
 
 async function stopMeeting() {
-  // Capture sessionId before clearing
   var sid = sessionId;
+  isStopping = true;
 
-  // Stop recording
-  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-    mediaRecorder.stop();
+  // Stop current recording — flush final chunk
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop(); // triggers onstop which sends the final partial chunk
   }
+
+  // Small delay to let the final chunk POST complete
+  await new Promise(function(resolve) { setTimeout(resolve, 500); });
 
   // Stop mic
   if (audioStream) {
@@ -395,6 +457,7 @@ async function stopMeeting() {
   }
 
   try {
+    dbg('Stopping session:', sid);
     var res = await fetch('/api/live/' + sid + '/stop', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
@@ -407,6 +470,7 @@ async function stopMeeting() {
     }
 
     var data = await res.json();
+    dbg('Stop response:', data);
 
     if (data.meeting_id) {
       window.location.href = '/dashboard.html?view=' + data.meeting_id;
@@ -421,11 +485,10 @@ async function stopMeeting() {
 
 // ---- Memory Hints ----
 async function fetchMemoryHints() {
-  var sid = document.body.getAttribute('data-session-id');
-  if (!sid) return;
+  if (!sessionId) return;
 
   try {
-    var res = await fetch('/api/live/' + sid + '/memory-hints', {
+    var res = await fetch('/api/live/' + sessionId + '/memory-hints', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });

@@ -47,7 +47,7 @@
   --space-3xl: 96px;
 
   /* Landing page */
-  --landing-max-width: 1100px;
+  --landing-max-width: 1200px;
 
   /* Live indicator */
   --color-live: #e63946;
@@ -71,7 +71,7 @@ a { color: var(--color-primary); text-decoration: none; }
 a:hover { text-decoration: underline; }
 
 /* Layout */
-.container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+.container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
 .nav-brand { display: flex; align-items: center; gap: 10px; }
 
 /* Navbar */
@@ -267,8 +267,8 @@ a:hover { text-decoration: underline; }
 /* Landing Page */
 .hero {
   text-align: center;
-  padding: var(--space-3xl) 20px var(--space-2xl);
-  max-width: 720px;
+  padding: var(--space-3xl) 24px var(--space-2xl);
+  max-width: 780px;
   margin: 0 auto;
 }
 
@@ -279,8 +279,8 @@ a:hover { text-decoration: underline; }
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 24px;
-  padding: 0 20px 80px;
-  max-width: 1100px;
+  padding: 0 24px 80px;
+  max-width: 1200px;
   margin: 0 auto;
 }
 
@@ -1883,9 +1883,9 @@ body.dark-mode .steps-grid .step-card:not(:last-child)::after {
 
 /* Page layout */
 .live-page {
-  max-width: var(--landing-max-width, 1100px);
+  max-width: var(--landing-max-width, 1200px);
   margin: 0 auto;
-  padding: 24px 20px;
+  padding: 24px 24px;
 }
 
 #session-phase {

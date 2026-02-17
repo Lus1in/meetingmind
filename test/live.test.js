@@ -266,6 +266,57 @@ describe('Live Transcription', () => {
     expect(res.body.error).toBe('meeting_limit');
   });
 
+  test('multiple chunks produce multiple transcript segments', async () => {
+    // Create a fresh session directly in DB to avoid rate limit
+    const result = db.prepare(
+      'INSERT INTO live_sessions (user_id, title, status) VALUES (?, ?, ?)'
+    ).run(paidUser.id, 'Multi-Chunk Test', 'active');
+    const multiSessionId = result.lastInsertRowid;
+
+    const audioBuffer = Buffer.alloc(1024, 0);
+
+    // Send 4 chunks at different timestamps
+    for (let i = 0; i < 4; i++) {
+      const res = await paidAgent
+        .post(`/api/live/${multiSessionId}/chunk`)
+        .attach('audio', audioBuffer, 'chunk.webm')
+        .field('timestamp_ms', String((i + 1) * 5000));
+
+      expect(res.status).toBe(200);
+      expect(res.body.ok).toBe(true);
+      expect(res.body.segment_index).toBe(i);
+    }
+
+    // Verify all 4 segments exist in DB
+    const segments = db.prepare(
+      'SELECT * FROM transcript_segments WHERE session_id = ? ORDER BY segment_index'
+    ).all(multiSessionId);
+
+    expect(segments.length).toBe(4);
+    expect(segments[0].timestamp_ms).toBe(5000);
+    expect(segments[1].timestamp_ms).toBe(10000);
+    expect(segments[2].timestamp_ms).toBe(15000);
+    expect(segments[3].timestamp_ms).toBe(20000);
+
+    // Each segment should have non-empty text
+    segments.forEach(seg => {
+      expect(seg.text.length).toBeGreaterThan(0);
+    });
+
+    // Stop the session and verify meeting is created with all segments
+    const stopRes = await paidAgent
+      .post(`/api/live/${multiSessionId}/stop`)
+      .send({});
+
+    expect(stopRes.status).toBe(200);
+    expect(stopRes.body.meeting_id).toBeDefined();
+
+    // Verify the meeting transcript contains text from all segments
+    const meeting = db.prepare('SELECT * FROM meetings WHERE id = ?').get(stopRes.body.meeting_id);
+    expect(meeting).toBeDefined();
+    expect(meeting.raw_notes.length).toBeGreaterThan(0);
+  });
+
   test('POST /api/live/:id/stop with no segments returns null meeting_id', async () => {
     // Create session directly in DB to avoid rate limit from prior tests
     const result = db.prepare(
