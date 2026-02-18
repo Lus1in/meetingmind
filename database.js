@@ -149,6 +149,23 @@ db.exec(`
   );
 `);
 
+// Tracked issues — cross-meeting unresolved/resolved issue tracking
+db.exec(`
+  CREATE TABLE IF NOT EXISTS tracked_issues (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    issue_text TEXT NOT NULL,
+    notes TEXT DEFAULT '',
+    source_meeting_id INTEGER,
+    source_meeting_title TEXT,
+    resolved INTEGER NOT NULL DEFAULT 0,
+    resolved_at DATETIME,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (source_meeting_id) REFERENCES meetings(id) ON DELETE SET NULL
+  );
+`);
+
 // Constraints & triggers
 db.exec(`
   CREATE UNIQUE INDEX IF NOT EXISTS idx_users_stripe_customer

@@ -57,30 +57,40 @@ if (process.env.MOCK_MODE !== 'true') {
   anthropic = new Anthropic({ apiKey: process.env.CLAUDE_API_KEY });
 }
 
-const EXTRACT_PROMPT = `You are a meeting notes assistant. Analyze the meeting notes and extract action items and a follow-up email.
+const EXTRACT_PROMPT = `You are a meeting notes assistant. Analyze the meeting notes and extract structured data.
 
 CRITICAL: Return ONLY a raw JSON object. No markdown fences, no backticks, no explanation text before or after. Do not wrap in \`\`\`json. Just the JSON object.
 
 Required JSON schema:
-{"action_items":[{"task":"...","owner":"...","deadline":"..."}],"follow_up_email":"..."}
+{"summary":"...","action_items":[{"task":"...","owner":"...","deadline":"..."}],"open_questions":["..."],"proposed_solutions":["..."],"follow_up_email":"..."}
 
 Rules:
-- "task": what needs to be done
-- "owner": who is responsible (use "Unassigned" if unclear)
-- "deadline": when it's due (use "Not specified" if unclear)
+- "summary": 2-3 sentence overview of the meeting's key points and decisions
+- "action_items": array of tasks. "task": what needs to be done, "owner": who is responsible (use "Unassigned" if unclear), "deadline": when it's due (use "Not specified" if unclear)
+- "open_questions": array of unresolved questions or issues raised but not answered
+- "proposed_solutions": array of solutions or approaches that were proposed or agreed upon during the meeting
 - "follow_up_email": short professional summary email addressed to "Hi team,"
-- If no action items found, return: {"action_items":[],"follow_up_email":""}
+- If no items found for a field, use an empty array or empty string
 - No trailing commas in arrays or objects
 
 Meeting notes:
 `;
 
 const MOCK_RESPONSE = {
+  summary: "Team standup covered Q3 budget, auth bug fix, client onboarding, and KPI metrics dashboard progress. Key decisions: Sarah to send KPI definitions to Lisa by Wednesday, Mike to handle deployment docs update.",
   action_items: [
     { task: "Finalize Q3 budget proposal and send to finance", owner: "Sarah", deadline: "Wednesday, Feb 12" },
     { task: "Fix authentication bug on staging environment", owner: "John", deadline: "End of day Friday" },
     { task: "Schedule follow-up call with client about onboarding", owner: "Mike", deadline: "Next week" },
     { task: "Update project timeline in shared doc", owner: "Unassigned", deadline: "Not specified" }
+  ],
+  open_questions: [
+    "Who will take ownership of updating the project timeline?",
+    "What are the updated KPI definitions needed for the Q3 dashboard?"
+  ],
+  proposed_solutions: [
+    "Use session timeout fix to resolve the authentication bug on staging",
+    "Schedule a walkthrough call with the client for onboarding next Tuesday"
   ],
   follow_up_email: "Hi team,\n\nThanks for the productive meeting today. Here's a quick summary of what we discussed and the next steps:\n\n- Sarah will finalize the Q3 budget proposal and send it to finance by Wednesday, Feb 12.\n- John will fix the authentication bug on staging before end of day Friday.\n- Mike will schedule a follow-up call with the client about onboarding next week.\n- We still need someone to update the project timeline in the shared doc — please volunteer if you can take this on.\n\nLet me know if I missed anything or if you have questions.\n\nBest regards"
 };
@@ -434,7 +444,7 @@ router.patch('/:id/transcript', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-// PATCH /api/meetings/:id/extraction — edit action items + follow-up email
+// PATCH /api/meetings/:id/extraction — edit action items + follow-up email + extended fields
 router.patch('/:id/extraction', requireAuth, (req, res) => {
   const { action_items, follow_up_email } = req.body;
 
@@ -453,7 +463,12 @@ router.patch('/:id/extraction', requireAuth, (req, res) => {
     return res.status(400).json({ error: 'follow_up_email must be a string' });
   }
 
-  const payload = JSON.stringify({ action_items, follow_up_email });
+  // Preserve extended fields
+  const summary = typeof req.body.summary === 'string' ? req.body.summary : '';
+  const open_questions = Array.isArray(req.body.open_questions) ? req.body.open_questions : [];
+  const proposed_solutions = Array.isArray(req.body.proposed_solutions) ? req.body.proposed_solutions : [];
+
+  const payload = JSON.stringify({ action_items, follow_up_email, summary, open_questions, proposed_solutions });
 
   const result = db.prepare(
     "UPDATE meetings SET action_items = ?, updated_at = datetime('now') WHERE id = ? AND user_id = ?"
@@ -633,6 +648,59 @@ function generateInsights(current, priorMeetings) {
     });
   }
 
+  // 6. Recurring Solutions
+  let currentActions;
+  try { currentActions = JSON.parse(current.action_items); } catch { currentActions = {}; }
+  const currentSolutions = (currentActions.proposed_solutions || []);
+
+  if (currentSolutions.length > 0) {
+    const recurringSolutions = [];
+    for (const prior of priorMeetings) {
+      let priorActions;
+      try { priorActions = JSON.parse(prior.action_items); } catch { priorActions = {}; }
+      const priorSolutions = (priorActions.proposed_solutions || []);
+
+      for (const cs of currentSolutions) {
+        const csWords = extractKeywords(cs.toLowerCase());
+        for (const ps of priorSolutions) {
+          const psWords = extractKeywords(ps.toLowerCase());
+          const overlap = csWords.filter(w => psWords.includes(w));
+          if (overlap.length >= 2) {
+            recurringSolutions.push({
+              solution: cs,
+              prior_solution: ps,
+              from_meeting: prior.title || 'Untitled Meeting',
+              from_date: prior.created_at
+            });
+          }
+        }
+      }
+    }
+
+    if (recurringSolutions.length > 0) {
+      // Deduplicate by solution text
+      const seen = new Set();
+      const unique = recurringSolutions.filter(s => {
+        const key = s.solution.toLowerCase().trim();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      insights.push({
+        type: 'recurring_solutions',
+        title: 'Recurring Solutions',
+        description: `${unique.length} solution${unique.length > 1 ? 's' : ''} similar to approaches from prior meetings.`,
+        details: unique.slice(0, 5).map(s => ({
+          solution: s.solution,
+          prior_solution: s.prior_solution,
+          from_meeting: s.from_meeting,
+          from_date: s.from_date
+        }))
+      });
+    }
+  }
+
   return insights;
 }
 
@@ -686,6 +754,97 @@ function extractPeople(text) {
 
   return [...people];
 }
+
+// GET /api/meetings/:id/whatchanged — compare with prior meeting
+router.get('/:id/whatchanged', requireAuth, (req, res) => {
+  const meeting = db.prepare(
+    'SELECT id, title, raw_notes, action_items, created_at FROM meetings WHERE id = ? AND user_id = ?'
+  ).get(req.params.id, req.session.userId);
+
+  if (!meeting) return res.status(404).json({ error: 'Meeting not found' });
+
+  // Get the most recent meeting BEFORE this one
+  const prior = db.prepare(
+    'SELECT id, title, raw_notes, action_items, created_at FROM meetings WHERE user_id = ? AND created_at < ? ORDER BY created_at DESC LIMIT 1'
+  ).get(req.session.userId, meeting.created_at);
+
+  if (!prior) return res.json({ has_prior: false });
+
+  let currentData, priorData;
+  try { currentData = JSON.parse(meeting.action_items); } catch { currentData = {}; }
+  try { priorData = JSON.parse(prior.action_items); } catch { priorData = {}; }
+
+  const currentItems = (currentData.action_items || []).map(i => i.task.toLowerCase().trim());
+  const priorItems = (priorData.action_items || []).map(i => i.task.toLowerCase().trim());
+
+  const newIssues = currentItems.filter(t => !priorItems.some(p => p === t));
+  const resolvedSinceLast = priorItems.filter(t => !currentItems.some(c => c === t));
+
+  const currentSolutions = (currentData.proposed_solutions || []);
+  const priorSolutions = (priorData.proposed_solutions || []);
+  const newSolutions = currentSolutions.filter(s => !priorSolutions.includes(s));
+
+  const currentQuestions = (currentData.open_questions || []);
+  const priorQuestions = (priorData.open_questions || []);
+  const newQuestions = currentQuestions.filter(q => !priorQuestions.includes(q));
+
+  const currentTopics = extractKeywords((meeting.raw_notes || '').toLowerCase());
+  const priorTopics = extractKeywords((prior.raw_notes || '').toLowerCase());
+  const newTopics = currentTopics.filter(t => !priorTopics.includes(t)).slice(0, 6);
+  const droppedTopics = priorTopics.filter(t => !currentTopics.includes(t)).slice(0, 6);
+
+  res.json({
+    has_prior: true,
+    prior_meeting: { id: prior.id, title: prior.title || 'Untitled Meeting', date: prior.created_at },
+    new_action_items: newIssues.slice(0, 8),
+    resolved_since_last: resolvedSinceLast.slice(0, 8),
+    new_solutions: newSolutions.slice(0, 5),
+    new_questions: newQuestions.slice(0, 5),
+    new_topics: newTopics,
+    dropped_topics: droppedTopics
+  });
+});
+
+// GET /api/issues — get all tracked issues for the user
+router.get('/issues', requireAuth, (req, res) => {
+  // Expose as /api/meetings/issues
+  const issues = db.prepare(
+    'SELECT * FROM tracked_issues WHERE user_id = ? ORDER BY resolved ASC, created_at DESC'
+  ).all(req.session.userId);
+  res.json(issues);
+});
+
+// POST /api/issues — create a tracked issue
+router.post('/issues', requireAuth, (req, res) => {
+  const { issue_text, notes, source_meeting_id, source_meeting_title } = req.body;
+  if (!issue_text || !issue_text.trim()) {
+    return res.status(400).json({ error: 'issue_text is required' });
+  }
+  const result = db.prepare(
+    'INSERT INTO tracked_issues (user_id, issue_text, notes, source_meeting_id, source_meeting_title) VALUES (?, ?, ?, ?, ?)'
+  ).run(req.session.userId, issue_text.trim(), (notes || '').trim(), source_meeting_id || null, source_meeting_title || null);
+
+  const issue = db.prepare('SELECT * FROM tracked_issues WHERE id = ?').get(result.lastInsertRowid);
+  res.status(201).json(issue);
+});
+
+// PATCH /api/issues/:id — toggle resolved / update notes
+router.patch('/issues/:id', requireAuth, (req, res) => {
+  const issue = db.prepare('SELECT * FROM tracked_issues WHERE id = ? AND user_id = ?').get(req.params.id, req.session.userId);
+  if (!issue) return res.status(404).json({ error: 'Issue not found' });
+
+  if (typeof req.body.resolved === 'boolean' || typeof req.body.resolved === 'number') {
+    const resolved = req.body.resolved ? 1 : 0;
+    const resolvedAt = resolved ? new Date().toISOString() : null;
+    db.prepare('UPDATE tracked_issues SET resolved = ?, resolved_at = ? WHERE id = ?').run(resolved, resolvedAt, issue.id);
+  }
+  if (typeof req.body.notes === 'string') {
+    db.prepare('UPDATE tracked_issues SET notes = ? WHERE id = ?').run(req.body.notes.trim(), issue.id);
+  }
+
+  const updated = db.prepare('SELECT * FROM tracked_issues WHERE id = ?').get(issue.id);
+  res.json(updated);
+});
 
 // DELETE /api/meetings/:id — delete a meeting (only if owned by user)
 router.delete('/:id', requireAuth, (req, res) => {

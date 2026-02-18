@@ -153,7 +153,9 @@ let originalTranscript = null;
 extractBtn.addEventListener('click', async () => {
   const notes = notesInput.value.trim();
   if (!notes) {
-    alert('Please paste your meeting notes first.');
+    var emptyMsg = document.getElementById('extract-empty-msg');
+    if (emptyMsg) emptyMsg.style.display = 'block';
+    setTimeout(function() { if (emptyMsg) emptyMsg.style.display = 'none'; }, 5000);
     return;
   }
 
@@ -190,6 +192,16 @@ extractBtn.addEventListener('click', async () => {
 
 // ---- Render Results (editable before save) ----
 function renderResults(data) {
+  // Summary
+  var summarySection = document.getElementById('results-summary-section');
+  var summaryEl = document.getElementById('results-summary');
+  if (data.summary) {
+    summaryEl.textContent = data.summary;
+    summarySection.style.display = 'block';
+  } else {
+    summarySection.style.display = 'none';
+  }
+
   const tbody = document.getElementById('action-items-body');
   const table = tbody.closest('table');
   tbody.innerHTML = '';
@@ -218,6 +230,28 @@ function renderResults(data) {
     table.after(addBtn);
   }
   addBtn.style.display = 'inline-block';
+
+  // Open Questions
+  var questionsSection = document.getElementById('results-questions-section');
+  var questionsList = document.getElementById('results-questions');
+  var questions = data.open_questions || [];
+  if (questions.length > 0) {
+    questionsList.innerHTML = questions.map(function(q) { return '<li>' + escapeHtml(q) + '</li>'; }).join('');
+    questionsSection.style.display = 'block';
+  } else {
+    questionsSection.style.display = 'none';
+  }
+
+  // Proposed Solutions
+  var solutionsSection = document.getElementById('results-solutions-section');
+  var solutionsList = document.getElementById('results-solutions');
+  var solutions = data.proposed_solutions || [];
+  if (solutions.length > 0) {
+    solutionsList.innerHTML = solutions.map(function(s) { return '<li>' + escapeHtml(s) + '</li>'; }).join('');
+    solutionsSection.style.display = 'block';
+  } else {
+    solutionsSection.style.display = 'none';
+  }
 
   // Follow-up email as editable textarea
   const emailContainer = document.getElementById('email-content');
@@ -468,6 +502,37 @@ async function viewMeeting(id, highlight) {
 
   // Render action items + follow-up email in detail view
   renderDetailExtraction(meeting.action_items);
+
+  // Render summary
+  var summarySection = document.getElementById('detail-summary-section');
+  var summaryEl = document.getElementById('detail-summary');
+  var summaryText = (meeting.action_items && meeting.action_items.summary) || '';
+  if (summaryText) {
+    summaryEl.textContent = summaryText;
+    summarySection.style.display = 'block';
+  } else {
+    summarySection.style.display = 'none';
+  }
+
+  // Render open questions
+  var questionsSection = document.getElementById('detail-questions-section');
+  var questionsList = document.getElementById('detail-questions');
+  var questions = (meeting.action_items && meeting.action_items.open_questions) || [];
+  if (questions.length > 0) {
+    questionsList.innerHTML = questions.map(function(q) { return '<li>' + escapeHtml(q) + '</li>'; }).join('');
+    questionsSection.style.display = 'block';
+  } else {
+    questionsSection.style.display = 'none';
+  }
+
+  // Render proposed solutions
+  renderDetailSolutions(meeting.action_items);
+
+  // Load tracked issues for this meeting
+  loadTrackedIssues(meeting.id);
+
+  // Load "What Changed Since Last Meeting"
+  loadWhatChanged(meeting.id);
 
   // Load cross-meeting insights
   loadInsights(meeting.id);
@@ -792,123 +857,7 @@ async function deleteMeeting(id) {
   if (res.ok) loadMeetings();
 }
 
-// ---- Voice Recording ----
-const recordBtn = document.getElementById('record-btn');
-const stopBtn = document.getElementById('stop-btn');
-const recordingPanel = document.getElementById('recording-panel');
-const recTimer = document.getElementById('rec-timer');
-
-const MAX_RECORDING_SECS = 600; // 10 minutes
-let mediaRecorder = null;
-let audioChunks = [];
-let recordingStart = 0;
-let timerInterval = null;
-
-recordBtn.addEventListener('click', async () => {
-  try {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioChunks = [];
-
-    mediaRecorder = new MediaRecorder(stream);
-    mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
-    mediaRecorder.onstop = () => {
-      stream.getTracks().forEach(t => t.stop());
-      handleRecordingComplete();
-    };
-
-    mediaRecorder.start();
-    recordingStart = Date.now();
-
-    // Show recording UI
-    recordingPanel.style.display = 'flex';
-    recordBtn.disabled = true;
-    extractBtn.disabled = true;
-    notesInput.disabled = true;
-
-    // Start timer
-    timerInterval = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - recordingStart) / 1000);
-      const mins = Math.floor(elapsed / 60);
-      const secs = elapsed % 60;
-      recTimer.textContent = `${mins}:${secs.toString().padStart(2, '0')}`;
-
-      // Auto-stop at max duration
-      if (elapsed >= MAX_RECORDING_SECS) {
-        mediaRecorder.stop();
-      }
-    }, 1000);
-  } catch (err) {
-    alert('Microphone access denied. Please allow microphone access to record.');
-  }
-});
-
-stopBtn.addEventListener('click', () => {
-  if (mediaRecorder && mediaRecorder.state === 'recording') {
-    mediaRecorder.stop();
-  }
-});
-
-async function handleRecordingComplete() {
-  clearInterval(timerInterval);
-  recordingPanel.style.display = 'none';
-  recTimer.textContent = '0:00';
-
-  // Show processing state
-  recordBtn.disabled = true;
-  extractBtn.disabled = true;
-  uploadBtn.disabled = true;
-  recordBtn.innerHTML = '<span class="spinner spinner-dark"></span>Transcribing\u2026';
-
-  try {
-    const blob = new Blob(audioChunks, { type: 'audio/webm' });
-    if (blob.size < 1000) {
-      uploadStatus.textContent = 'Recording too short. Please try again.';
-      uploadStatus.className = 'upload-status error';
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('audio', blob, 'recording.webm');
-
-    const res = await fetch('/api/meetings/upload', {
-      method: 'POST',
-      body: formData
-    });
-
-    if (!res.ok) {
-      const errData = await res.json();
-      if (res.status === 403 && errData.error === 'meeting_limit') {
-        showLimitMessage(errData.message);
-      } else {
-        uploadStatus.textContent = errData.error || 'Transcription failed. Please try again.';
-        uploadStatus.className = 'upload-status error';
-      }
-      return;
-    }
-
-    const data = await res.json();
-    uploadStatus.textContent = 'Saved!';
-    uploadStatus.className = 'upload-status saved';
-
-    await loadMeetings();
-    viewMeeting(data.id, true);
-
-    setTimeout(() => {
-      uploadStatus.textContent = '';
-      uploadStatus.className = 'upload-status';
-    }, 3000);
-  } catch (err) {
-    uploadStatus.textContent = 'Something went wrong. Please try again.';
-    uploadStatus.className = 'upload-status error';
-  } finally {
-    recordBtn.disabled = false;
-    recordBtn.textContent = 'Record Meeting';
-    extractBtn.disabled = false;
-    extractBtn.textContent = 'Extract Action Items';
-    uploadBtn.disabled = false;
-    notesInput.disabled = false;
-  }
-}
+// (Recording removed — use Live Meeting instead)
 
 // ---- Limit Reached Banner ----
 function showLimitMessage(message) {
@@ -1073,13 +1022,202 @@ function showLimitMessage(message) {
   checkZoomStatus();
 })();
 
+// ---- Solutions Section ----
+function renderDetailSolutions(actionData) {
+  var section = document.getElementById('detail-solutions-section');
+  var list = document.getElementById('detail-solutions');
+  var solutions = (actionData && actionData.proposed_solutions) || [];
+  if (solutions.length > 0) {
+    list.innerHTML = solutions.map(function(s, i) {
+      return '<li>' + escapeHtml(s) + '</li>';
+    }).join('');
+    section.style.display = 'block';
+  } else {
+    list.innerHTML = '';
+    section.style.display = 'block'; // Always show so users can add
+  }
+}
+
+document.getElementById('add-solution-btn').addEventListener('click', function() {
+  var text = prompt('Enter a proposed or agreed solution:');
+  if (!text || !text.trim()) return;
+
+  // Add to the existing extraction data
+  if (!currentMeetingId) return;
+  fetch('/api/meetings/' + currentMeetingId).then(function(r) { return r.json(); }).then(function(meeting) {
+    var data = meeting.action_items || {};
+    if (!data.proposed_solutions) data.proposed_solutions = [];
+    data.proposed_solutions.push(text.trim());
+
+    return fetch('/api/meetings/' + currentMeetingId + '/extraction', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action_items: data.action_items || [],
+        follow_up_email: data.follow_up_email || '',
+        open_questions: data.open_questions || [],
+        proposed_solutions: data.proposed_solutions,
+        summary: data.summary || ''
+      })
+    });
+  }).then(function() {
+    viewMeeting(currentMeetingId);
+  });
+});
+
+// ---- Tracked Issues (Unresolved / Resolved) ----
+function loadTrackedIssues(meetingId) {
+  fetch('/api/meetings/issues').then(function(r) { return r.json(); }).then(function(issues) {
+    var unresolved = issues.filter(function(i) { return !i.resolved; });
+    var resolved = issues.filter(function(i) { return i.resolved; });
+
+    var issuesSection = document.getElementById('detail-issues-section');
+    var issuesList = document.getElementById('detail-issues-list');
+    var issuesEmpty = document.getElementById('detail-issues-empty');
+
+    if (unresolved.length > 0) {
+      issuesList.innerHTML = unresolved.map(renderIssueCard).join('');
+      issuesEmpty.style.display = 'none';
+    } else {
+      issuesList.innerHTML = '';
+      issuesEmpty.style.display = 'block';
+    }
+    issuesSection.style.display = 'block';
+
+    var resolvedSection = document.getElementById('detail-resolved-section');
+    var resolvedList = document.getElementById('detail-resolved-list');
+    if (resolved.length > 0) {
+      resolvedList.innerHTML = resolved.map(renderIssueCard).join('');
+      resolvedSection.style.display = 'block';
+    } else {
+      resolvedSection.style.display = 'none';
+    }
+  }).catch(function() {
+    document.getElementById('detail-issues-section').style.display = 'none';
+    document.getElementById('detail-resolved-section').style.display = 'none';
+  });
+}
+
+function renderIssueCard(issue) {
+  var checked = issue.resolved ? 'checked' : '';
+  var resolvedClass = issue.resolved ? ' issue-resolved' : '';
+  var source = issue.source_meeting_title ? ' <span class="issue-source">from ' + escapeHtml(issue.source_meeting_title) + '</span>' : '';
+  var notesHtml = issue.notes ? '<div class="issue-notes">' + escapeHtml(issue.notes) + '</div>' : '';
+  var dateStr = '';
+  if (issue.resolved_at) {
+    try { dateStr = ' <span class="issue-date">Resolved ' + new Date(issue.resolved_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>'; } catch(e) {}
+  } else if (issue.created_at) {
+    try { dateStr = ' <span class="issue-date">' + new Date(issue.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + '</span>'; } catch(e) {}
+  }
+
+  return '<div class="issue-card' + resolvedClass + '">' +
+    '<label class="issue-checkbox-label">' +
+    '<input type="checkbox" class="issue-checkbox" data-issue-id="' + issue.id + '" ' + checked + '>' +
+    '<span class="issue-text">' + escapeHtml(issue.issue_text) + '</span>' +
+    source + dateStr +
+    '</label>' +
+    notesHtml +
+    '</div>';
+}
+
+// Event delegation for issue checkboxes
+document.addEventListener('change', function(e) {
+  if (!e.target.classList.contains('issue-checkbox')) return;
+  var issueId = e.target.getAttribute('data-issue-id');
+  var resolved = e.target.checked;
+
+  fetch('/api/meetings/issues/' + issueId, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resolved: resolved })
+  }).then(function() {
+    if (currentMeetingId) loadTrackedIssues(currentMeetingId);
+  });
+});
+
+// Auto-create tracked issues from cross-meeting insights
+function autoTrackUnresolvedItems(insights) {
+  var unresolvedInsight = insights.find(function(i) { return i.type === 'unresolved_items'; });
+  if (!unresolvedInsight || !unresolvedInsight.details) return;
+
+  // Get existing issues to avoid duplicates
+  fetch('/api/meetings/issues').then(function(r) { return r.json(); }).then(function(existing) {
+    var existingTexts = existing.map(function(i) { return i.issue_text.toLowerCase().trim(); });
+
+    unresolvedInsight.details.forEach(function(item) {
+      var text = item.task;
+      if (!text || existingTexts.includes(text.toLowerCase().trim())) return;
+
+      fetch('/api/meetings/issues', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          issue_text: text,
+          source_meeting_title: item.from_meeting || ''
+        })
+      });
+    });
+  });
+}
+
+// ---- What Changed Since Last Meeting ----
+function loadWhatChanged(meetingId) {
+  var section = document.getElementById('detail-whatchanged-section');
+  var content = document.getElementById('detail-whatchanged-content');
+
+  fetch('/api/meetings/' + meetingId + '/whatchanged').then(function(r) { return r.json(); }).then(function(data) {
+    if (!data.has_prior) {
+      section.style.display = 'none';
+      return;
+    }
+
+    var html = '<p style="font-size:0.85rem;color:var(--color-text-muted);margin-bottom:12px">Compared to: <strong>' + escapeHtml(data.prior_meeting.title) + '</strong></p>';
+
+    if (data.new_action_items && data.new_action_items.length > 0) {
+      html += '<div class="whatchanged-group"><h4>New Action Items</h4><ul>' +
+        data.new_action_items.map(function(t) { return '<li>' + escapeHtml(t) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    if (data.resolved_since_last && data.resolved_since_last.length > 0) {
+      html += '<div class="whatchanged-group"><h4>Resolved Since Last Meeting</h4><ul>' +
+        data.resolved_since_last.map(function(t) { return '<li class="resolved-item">' + escapeHtml(t) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    if (data.new_solutions && data.new_solutions.length > 0) {
+      html += '<div class="whatchanged-group"><h4>New Solutions</h4><ul>' +
+        data.new_solutions.map(function(s) { return '<li>' + escapeHtml(s) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    if (data.new_questions && data.new_questions.length > 0) {
+      html += '<div class="whatchanged-group"><h4>New Questions</h4><ul>' +
+        data.new_questions.map(function(q) { return '<li>' + escapeHtml(q) + '</li>'; }).join('') + '</ul></div>';
+    }
+
+    if (data.new_topics && data.new_topics.length > 0) {
+      html += '<div class="whatchanged-group"><h4>New Topics</h4><div>' +
+        data.new_topics.map(function(t) { return '<span class="insight-tag">' + escapeHtml(t) + '</span>'; }).join('') + '</div></div>';
+    }
+
+    if (data.dropped_topics && data.dropped_topics.length > 0) {
+      html += '<div class="whatchanged-group"><h4>Topics No Longer Discussed</h4><div>' +
+        data.dropped_topics.map(function(t) { return '<span class="insight-tag" style="opacity:0.6">' + escapeHtml(t) + '</span>'; }).join('') + '</div></div>';
+    }
+
+    content.innerHTML = html;
+    section.style.display = 'block';
+  }).catch(function() {
+    section.style.display = 'none';
+  });
+}
+
 // ---- Cross-Meeting Intelligence ----
 const INSIGHT_ICONS = {
   repeated_topics: '\u{1F504}',
   unresolved_items: '\u{26A0}',
   follow_up_signals: '\u{1F517}',
   recurring_participants: '\u{1F465}',
-  new_topics: '\u{2728}'
+  new_topics: '\u{2728}',
+  recurring_solutions: '\u{1F4A1}'
 };
 
 async function loadInsights(meetingId) {
@@ -1109,6 +1247,11 @@ async function loadInsights(meetingId) {
 
     emptyEl.style.display = 'none';
     content.innerHTML = data.insights.map(renderInsightCard).join('');
+
+    // Auto-track unresolved items as issues
+    autoTrackUnresolvedItems(data.insights);
+    // Refresh issues list after auto-tracking
+    setTimeout(function() { if (currentMeetingId) loadTrackedIssues(currentMeetingId); }, 500);
   } catch (err) {
     section.style.display = 'none';
   }
@@ -1147,6 +1290,13 @@ function renderInsightCard(insight) {
       insight.details.map(s =>
         `<span class="insight-tag">"${escapeHtml(s)}"</span>`
       ).join('') + '</div>';
+  } else if (insight.type === 'recurring_solutions' && Array.isArray(insight.details)) {
+    detailsHtml = '<ul class="insight-detail-list">' +
+      insight.details.map(d =>
+        `<li>"${escapeHtml(d.solution)}"` +
+        ` &mdash; similar to "${escapeHtml(d.prior_solution)}"` +
+        ` from <strong>${escapeHtml(d.from_meeting)}</strong></li>`
+      ).join('') + '</ul>';
   }
 
   return `<div class="insight-card">

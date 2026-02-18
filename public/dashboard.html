@@ -70,22 +70,19 @@
       <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
       <div class="input-actions">
         <button class="btn btn-primary" id="extract-btn">Extract Action Items</button>
-        <span class="divider-text">or</span>
-        <button class="btn btn-secondary" id="record-btn">Record Meeting</button>
       </div>
-    </div>
-
-    <!-- Recording UI -->
-    <div class="recording-panel" id="recording-panel" style="display:none">
-      <div class="recording-indicator">
-        <span class="rec-dot"></span>
-        <span id="rec-timer">0:00</span>
+      <div class="extract-empty-msg" id="extract-empty-msg" style="display:none">
+        No meeting data found. <a href="/live.html">Start a Live Meeting</a> or upload audio/video to analyze.
       </div>
-      <button class="btn btn-danger" id="stop-btn">Stop Recording</button>
     </div>
 
     <!-- Results Section -->
     <div class="results" id="results">
+      <div id="results-summary-section" style="display:none">
+        <h3>Summary</h3>
+        <div class="result-summary-box" id="results-summary"></div>
+      </div>
+
       <h3>Action Items</h3>
       <table class="action-items-table">
         <thead>
@@ -93,6 +90,16 @@
         </thead>
         <tbody id="action-items-body"></tbody>
       </table>
+
+      <div id="results-questions-section" style="display:none">
+        <h3>Open Questions</h3>
+        <ul class="open-questions-list" id="results-questions"></ul>
+      </div>
+
+      <div id="results-solutions-section" style="display:none">
+        <h3>Proposed / Agreed Solutions</h3>
+        <ul class="solutions-list" id="results-solutions"></ul>
+      </div>
 
       <h3>Follow-up Email</h3>
       <div class="email-box">
@@ -133,10 +140,52 @@
         <a class="btn btn-secondary btn-small" id="email-outlook-btn" href="#" target="_blank">Email (Outlook)</a>
       </div>
 
+      <!-- Summary -->
+      <div id="detail-summary-section" style="display:none;margin-top:24px">
+        <h3>Summary</h3>
+        <div class="result-summary-box" id="detail-summary"></div>
+      </div>
+
       <div id="detail-extraction" style="display:none">
         <h3 style="margin-top:24px">Action Items</h3>
         <div id="detail-extraction-content"></div>
       </div>
+
+      <!-- Open Questions -->
+      <div id="detail-questions-section" style="display:none;margin-top:24px">
+        <h3>Open Questions</h3>
+        <ul class="open-questions-list" id="detail-questions"></ul>
+      </div>
+
+      <!-- Proposed / Agreed Solutions -->
+      <div id="detail-solutions-section" style="display:none;margin-top:24px">
+        <h3>Proposed / Agreed Solutions</h3>
+        <ul class="solutions-list" id="detail-solutions"></ul>
+        <button class="btn btn-secondary btn-small" id="add-solution-btn" style="margin-top:8px">+ Add solution</button>
+      </div>
+
+      <!-- Unresolved Issues -->
+      <div id="detail-issues-section" style="display:none;margin-top:24px">
+        <h3>Unresolved Issues</h3>
+        <div id="detail-issues-list"></div>
+        <p id="detail-issues-empty" class="insights-empty" style="display:none">No unresolved issues.</p>
+      </div>
+
+      <!-- Resolved Issues -->
+      <div id="detail-resolved-section" style="display:none;margin-top:24px">
+        <h3>Resolved Issues</h3>
+        <div id="detail-resolved-list"></div>
+      </div>
+
+      <!-- What Changed Since Last Meeting -->
+      <div id="detail-whatchanged-section" style="display:none;margin-top:24px">
+        <div class="insights-header">
+          <h3>What Changed Since Last Meeting</h3>
+          <span class="insights-badge">Delta</span>
+        </div>
+        <div id="detail-whatchanged-content"></div>
+      </div>
+
       <!-- Cross-Meeting Intelligence -->
       <div id="insights-section" style="display:none;margin-top:24px">
         <div class="insights-header">
