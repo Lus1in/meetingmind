@@ -7,6 +7,12 @@ const router = express.Router();
 // Blog post registry — add new posts here
 const POSTS = [
   {
+    slug: 'stop-losing-decisions-in-meetings',
+    title: 'Stop Losing Decisions in Meetings: How to Track What Actually Gets Agreed',
+    date: '2026-02-18',
+    summary: 'Most meetings produce decisions that vanish within hours. Unresolved issues pile up across weeks. Here\'s how structured extraction and cross-meeting tracking change that permanently.'
+  },
+  {
     slug: 'why-live-transcription-matters',
     title: 'Why Live Transcription Changes Everything About How You Run Meetings',
     date: '2026-02-17',

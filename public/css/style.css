@@ -22,11 +22,6 @@
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.08);
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.1);
-  --notepad-line-color: #e8e8e8;
-  --notepad-margin-color: #f4a4a4;
-  --notepad-line-height: 2rem;
-  --notepad-margin-left: 60px;
-
   /* Typography scale */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
@@ -1119,44 +1114,27 @@ a:hover { text-decoration: underline; }
   margin-top: 12px;
 }
 
-/* ---- Notepad Design System ---- */
-.notepad-sheet {
+/* ---- Card Design System ---- */
+.card {
   background: var(--color-surface);
-  background-image:
-    repeating-linear-gradient(
-      transparent,
-      transparent calc(var(--notepad-line-height) - 1px),
-      var(--notepad-line-color) calc(var(--notepad-line-height) - 1px),
-      var(--notepad-line-color) var(--notepad-line-height)
-    );
-  background-position: 0 0;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  padding: 24px 24px 24px var(--notepad-margin-left);
-  position: relative;
+  padding: 24px;
   border: 1px solid var(--color-border);
 }
 
-.notepad-sheet::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: calc(var(--notepad-margin-left) - 12px);
-  bottom: 0;
-  width: 2px;
-  background: var(--notepad-margin-color);
-  border-radius: 1px;
-}
-
-.notepad-sheet .notepad-header {
-  font-size: 0.7rem;
+.card-header {
+  font-size: 0.8rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   color: var(--color-text-muted);
-  border-bottom: 2px solid var(--color-border);
-  padding-bottom: 8px;
+  padding-bottom: 10px;
   margin-bottom: 16px;
+  border-bottom: 1px solid var(--color-border-light);
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 /* ---- Alert Banners ---- */
@@ -1536,10 +1514,6 @@ body.dark-mode .insight-icon.recurring_solutions {
 
 /* Tablet breakpoint */
 @media (max-width: 768px) {
-  :root {
-    --notepad-margin-left: 36px;
-  }
-
   /* Global overflow prevention */
   .container { padding: 0 14px; max-width: 100%; }
 
@@ -1573,9 +1547,6 @@ body.dark-mode .insight-icon.recurring_solutions {
 
   /* Action items table: horizontal scroll on mobile */
   .action-items-table { display: block; overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-  /* Notepad sheets: fluid padding */
-  .notepad-sheet { padding: 16px 14px 16px var(--notepad-margin-left); }
 
   /* Form card */
   .form-card { margin: 24px 14px; padding: 24px 18px; max-width: 100%; }
@@ -1637,11 +1608,6 @@ body.dark-mode .insight-icon.recurring_solutions {
 
 /* Phone breakpoint */
 @media (max-width: 480px) {
-  :root {
-    --notepad-margin-left: 24px;
-    --notepad-line-height: 1.75rem;
-  }
-
   /* Navbar: tighter */
   .navbar .logo { font-size: 1rem; }
   .navbar nav { gap: 6px; width: 100%; justify-content: flex-end; }
@@ -1661,10 +1627,6 @@ body.dark-mode .insight-icon.recurring_solutions {
   .hero h1 { font-size: 1.3rem; }
   .hero p { font-size: 0.95rem; }
   .helper-text { font-size: 0.85rem; }
-
-  /* Notepad: minimal margin on phone */
-  .notepad-sheet { padding: 12px 10px 12px var(--notepad-margin-left); }
-  .notepad-sheet .notepad-header { font-size: 0.65rem; }
 
   /* Upload section */
   .upload-section { padding: 14px; margin-bottom: 20px; }
@@ -1732,8 +1694,6 @@ body.dark-mode {
   --color-border: #3f3f46;
   --color-border-light: #2e2e33;
   --color-input-border: #52525b;
-  --notepad-line-color: #333338;
-  --notepad-margin-color: #7f4444;
   --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
   --shadow-md: 0 2px 8px rgba(0,0,0,0.4);
   --shadow-lg: 0 4px 16px rgba(0,0,0,0.5);
@@ -1849,15 +1809,6 @@ body.dark-mode .detail-transcript-edit {
   border-color: var(--color-primary);
   color: var(--color-text);
   box-shadow: 0 0 0 3px var(--color-primary-light);
-}
-
-body.dark-mode .notepad-sheet {
-  background-color: var(--color-surface);
-  border-color: var(--color-border);
-}
-body.dark-mode .notepad-sheet .notepad-header {
-  color: var(--color-text-muted);
-  border-bottom-color: var(--color-border);
 }
 
 body.dark-mode .pricing-card {
@@ -2038,7 +1989,7 @@ body.dark-mode .steps-grid .step-card:not(:last-child)::after {
 .live-meeting-section {
   margin-bottom: 24px;
 }
-.live-meeting-section .notepad-header {
+.live-meeting-section .card-header {
   display: flex;
   align-items: center;
   gap: 8px;

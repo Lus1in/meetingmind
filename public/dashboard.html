@@ -24,16 +24,16 @@
 
   <div class="container dashboard">
     <!-- Live Meeting Section -->
-    <div class="live-meeting-section notepad-sheet">
-      <div class="notepad-header"><span class="rec-dot"></span> Live Meeting</div>
+    <div class="live-meeting-section card">
+      <div class="card-header"><span class="rec-dot"></span> Live Meeting</div>
       <p class="helper-text">Start a live recording session. MeetingMind transcribes in real time and extracts action items as you talk.</p>
       <a href="/live.html" class="btn btn-primary" id="start-live-link">Start Live Meeting</a>
     </div>
 
     <!-- Upload Audio Section -->
     <h2>Upload Audio</h2>
-    <div class="upload-section notepad-sheet">
-      <div class="notepad-header">Audio Transcription</div>
+    <div class="upload-section card">
+      <div class="card-header">Audio Transcription</div>
       <p class="helper-text">Upload a recording (mp3, wav, m4a, or webm — up to 100 MB) and we'll transcribe it automatically. MeetingMind extracts decisions, owners, and deadlines — not just a transcript.</p>
       <input type="text" id="upload-title" placeholder="Meeting title (optional)" class="upload-title-input">
       <div class="upload-row">
@@ -64,8 +64,8 @@
 
     <!-- Paste Notes Section -->
     <h2>Extract Action Items</h2>
-    <div class="notes-input notepad-sheet">
-      <div class="notepad-header">Meeting Notes</div>
+    <div class="notes-input card">
+      <div class="card-header">Meeting Notes</div>
       <p class="helper-text">Paste your transcript or meeting notes below, then click <strong>Extract</strong> to generate action items and a follow-up email.</p>
       <textarea id="notes-input" placeholder="Paste your meeting notes here...&#10;&#10;Example:&#10;Team standup — Feb 8, 2026&#10;Attendees: Sarah, John, Mike&#10;&#10;Sarah will finalize the landing page design by Wednesday.&#10;John needs to fix the login bug before end of day Friday.&#10;Mike will schedule a follow-up with the client next week."></textarea>
       <div class="input-actions">

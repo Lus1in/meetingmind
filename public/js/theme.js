@@ -1,8 +1,9 @@
 // ---- Dark Mode Toggle ----
 // Applies saved preference immediately to prevent flash
+// Default: dark mode (user can opt into light)
 (function() {
   var saved = localStorage.getItem('meetingmind-theme');
-  if (saved === 'dark') document.body.classList.add('dark-mode');
+  if (saved !== 'light') document.body.classList.add('dark-mode');
 })();
 
 // Bind click handler to existing #theme-toggle button in navbar
